@@ -203,6 +203,151 @@ Uptime Kuma monitors your services and sends alerts when they go down or fail he
 - **Gmail:** Use an App Password (not your regular password). Enable 2FA first, then generate an App Password at https://myaccount.google.com/apppasswords
 - **Other Providers:** Use your SMTP server details (host, port, username, password)
 
+## External Access with Cloudflare Tunnel
+
+Cloudflare Tunnel (cloudflared) enables secure external access to your services without port forwarding, firewall configuration, or exposing ports directly to the internet. All traffic is encrypted and routed through Cloudflare's network.
+
+### Prerequisites
+
+1. A Cloudflare account (free tier works)
+2. A domain name added to your Cloudflare account
+3. DNS management through Cloudflare (change nameservers if needed)
+
+### Setup Instructions
+
+#### 1. Create a Cloudflare Tunnel
+
+1. Log in to your [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. Select your domain
+3. Go to **Zero Trust** (or **Access** → **Tunnels**)
+4. Click **Networks** → **Tunnels**
+5. Click **Create a tunnel**
+6. Select **Cloudflared** as the connector type
+7. Give your tunnel a name (e.g., "plex-stack")
+8. Copy the **Tunnel Token** (you'll need this for the `.env` file)
+
+#### 2. Configure Environment Variable
+
+Add the tunnel token to your `.env` file:
+
+```bash
+CLOUDFLARE_TUNNEL_TOKEN=your-tunnel-token-here
+```
+
+#### 3. Configure Routes in Cloudflare Dashboard
+
+For each service you want to expose, add a public hostname:
+
+1. In the tunnel configuration, click **Public Hostnames**
+2. Click **Add a public hostname**
+3. Configure each service:
+
+   **Example for Plex:**
+   - Subdomain: `plex`
+   - Domain: `yourdomain.com`
+   - Service: `http://localhost:32400`
+   - Path: (leave empty)
+
+   **Example for Overseerr:**
+   - Subdomain: `overseerr`
+   - Domain: `yourdomain.com`
+   - Service: `http://localhost:5055`
+   - Path: (leave empty)
+
+   **Example for Radarr:**
+   - Subdomain: `radarr`
+   - Domain: `yourdomain.com`
+   - Service: `http://localhost:7878`
+   - Path: (leave empty)
+
+   **Example for Sonarr:**
+   - Subdomain: `sonarr`
+   - Domain: `yourdomain.com`
+   - Service: `http://localhost:8989`
+   - Path: (leave empty)
+
+   Repeat for any other services you want to expose (Prowlarr, Tautulli, Bazarr, etc.)
+
+   **Note:** Since Plex uses `network_mode: host`, use `localhost:32400`. For other services, use `localhost` with their respective ports.
+
+#### 4. Start the Cloudflared Service
+
+Start the stack with the cloudflared service:
+
+```bash
+docker compose up -d cloudflared
+```
+
+Or start the entire stack:
+
+```bash
+docker compose up -d
+```
+
+The cloudflared container will connect to Cloudflare's network and route traffic to your services.
+
+#### 5. Configure Authentication (Recommended)
+
+For enhanced security, set up Cloudflare Access authentication:
+
+1. In Cloudflare Dashboard, go to **Zero Trust** → **Access** → **Applications**
+2. Click **Add an application**
+3. Select **Self-hosted**
+4. Configure the application:
+   - Application name: e.g., "Plex Stack - Overseerr"
+   - Session duration: Your preference
+   - Application domain: Select the subdomain (e.g., `overseerr.yourdomain.com`)
+5. Set up access policies:
+   - Policy name: e.g., "Allow My Email"
+   - Action: Allow
+   - Include: Email addresses (add your email addresses)
+   - Or use other criteria like country, IP ranges, etc.
+6. Click **Add application**
+
+Repeat for each service you want to protect with Access authentication.
+
+**Benefits of Cloudflare Access:**
+- Additional authentication layer before accessing services
+- Users must log in with their email (or other configured methods)
+- Free tier supports unlimited users
+- Can configure per-service access policies
+- Works alongside service-level authentication
+
+#### 6. Verify Access
+
+1. Wait a few minutes for DNS propagation
+2. Access your services via their subdomains (e.g., `https://plex.yourdomain.com`)
+3. If using Cloudflare Access, you'll be prompted to authenticate first
+4. Then access the service using its built-in authentication
+
+### Service URLs Summary
+
+After setup, your services will be accessible at:
+
+- Plex: `https://plex.yourdomain.com`
+- Overseerr: `https://overseerr.yourdomain.com`
+- Radarr: `https://radarr.yourdomain.com`
+- Sonarr: `https://sonarr.yourdomain.com`
+- Prowlarr: `https://prowlarr.yourdomain.com`
+- Tautulli: `https://tautulli.yourdomain.com` (advanced profile)
+- Bazarr: `https://bazarr.yourdomain.com` (advanced profile)
+- (Add others as needed)
+
+### Troubleshooting
+
+- **Tunnel not connecting:** Verify the `CLOUDFLARE_TUNNEL_TOKEN` in your `.env` file is correct
+- **Services not accessible:** Check that routes are configured correctly in Cloudflare Dashboard (Service should point to `http://localhost:<port>`)
+- **SSL errors:** Cloudflare provides SSL automatically - ensure your domain DNS is pointing to Cloudflare nameservers
+- **Container logs:** Check logs with `docker compose logs cloudflared`
+
+### Security Considerations
+
+- **Cloudflare Access is recommended** for an additional authentication layer
+- Services are still protected by their built-in authentication
+- All traffic is encrypted via HTTPS through Cloudflare
+- No ports need to be opened on your router/firewall
+- Services are not directly exposed to the public internet
+
 ## Possible Additions
 
 1. Organizr - Creates a lovely dashboard to help navigate to all of your apps

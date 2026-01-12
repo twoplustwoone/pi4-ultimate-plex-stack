@@ -433,3 +433,21 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  cloudflared:
+    image: ${CLOUDFLARE_IMAGE:-cloudflare/cloudflared:latest}
+    container_name: cloudflared
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    volumes:
+      - ${BASE_PATH}/cloudflared:/etc/cloudflared
+    restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep cloudflared > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
