@@ -251,6 +251,8 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      - CONFIG_DIR=/config
+      - DOCKER_ENV=true
       - QBITTORRENT_HOST=${QBITTORRENT_HOST:-gluetun}
       - QBITTORRENT_PORT=${QBITTORRENT_PORT:-8080}
       - QBITTORRENT_USER=${QBITTORRENT_USER}
@@ -262,7 +264,7 @@ services:
       - ${MEDIA_SHARE}/cross-seed/current-cross-seeds:/cross-seeds
     ports:
       - "2468:2468"
-    command: ["daemon", "--config", "/config/config.js"]
+    command: ["daemon"]
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
