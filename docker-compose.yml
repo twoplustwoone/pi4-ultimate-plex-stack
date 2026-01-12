@@ -262,7 +262,7 @@ services:
       - ${MEDIA_SHARE}/cross-seed/current-cross-seeds:/cross-seeds
     ports:
       - "2468:2468"
-    command: daemon
+    command: ["daemon", "--config", "/config/config.js"]
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
