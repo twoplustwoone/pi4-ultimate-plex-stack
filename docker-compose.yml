@@ -250,8 +250,14 @@ services:
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
+      - TZ=${TZ}
+      - QBITTORRENT_HOST=${QBITTORRENT_HOST:-gluetun}
+      - QBITTORRENT_PORT=${QBITTORRENT_PORT:-8080}
+      - QBITTORRENT_USER=${QBITTORRENT_USER}
+      - QBITTORRENT_PASS=${QBITTORRENT_PASS}
     volumes:
-      - ${BASE_PATH}/cross-seed/config:/config
+      - ./cross-seed/config:/config
+      - ${MEDIA_SHARE}:/share
       - ${BASE_PATH}/qbittorrent/config/qBittorrent/BT_backup:/torrents:ro
       - ${MEDIA_SHARE}/cross-seed/current-cross-seeds:/cross-seeds
     ports:
