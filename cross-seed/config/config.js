@@ -6,10 +6,16 @@ const qbAuth =
   qbUser && qbPass
     ? `${encodeURIComponent(qbUser)}:${encodeURIComponent(qbPass)}@`
     : "";
+const prowlarrUrl = process.env.PROWLARR_URL || "http://prowlarr:9696";
+const prowlarrKey = process.env.PROWLARR_API_KEY;
+const torznab = prowlarrKey
+  ? [`${prowlarrUrl.replace(/\/$/, "")}/api/v1/indexer/torznab?apikey=${prowlarrKey}`]
+  : [];
 
 module.exports = {
   action: "inject",
   useClientTorrents: true,
+  torznab,
   torrentClients: [`qbittorrent:http://${qbAuth}${qbHost}:${qbPort}`],
   matchMode: "strict",
   seasonFromEpisodes: null,

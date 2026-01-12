@@ -65,7 +65,7 @@ Currently you can choose from the **Basic** or the **Advanced** compose using Do
 
 Docker Compose reads `.env` automatically. The pinning script keeps your stack stable by locking to digests.
 
-Cross-seed config lives at `cross-seed/config/config.js`. Update `linkDirs` to match your downloads path and set `QBITTORRENT_USER` / `QBITTORRENT_PASS` in `.env`.
+Cross-seed config lives at `cross-seed/config/config.js`. Update `linkDirs` to match your downloads path and set `QBITTORRENT_USER` / `QBITTORRENT_PASS` and `PROWLARR_API_KEY` in `.env` (Prowlarr is used for the torznab feed).
 
 ## Example of Environment variables in Portainer
 

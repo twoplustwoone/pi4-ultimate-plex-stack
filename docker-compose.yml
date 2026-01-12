@@ -257,6 +257,8 @@ services:
       - QBITTORRENT_PORT=${QBITTORRENT_PORT:-8080}
       - QBITTORRENT_USER=${QBITTORRENT_USER}
       - QBITTORRENT_PASS=${QBITTORRENT_PASS}
+      - PROWLARR_URL=${PROWLARR_URL:-http://prowlarr:9696}
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
     volumes:
       - ./cross-seed/config:/config
       - ${MEDIA_SHARE}:/share
