@@ -140,11 +140,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "ip route show default | grep -Eq 'tun|wg'"]
+      test: ["CMD-SHELL", "ip link show up | grep -Eq 'tun[0-9]+|wg[0-9]+'"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 2m
 
   unpackerr:
     image: ${UNPACKERR_IMAGE:-golift/unpackerr:latest}
