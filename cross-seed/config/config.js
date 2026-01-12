@@ -11,25 +11,24 @@ const qbAuth =
 const prowlarrUrl = process.env.PROWLARR_URL || "http://prowlarr:9696";
 const prowlarrKey = process.env.PROWLARR_API_KEY;
 
+// Comma-separated list of Prowlarr indexer IDs, e.g. "1,2,3"
+const indexerIds = (process.env.PROWLARR_INDEXER_IDS || "1")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const base = prowlarrUrl.replace(/\/$/, "");
+
+const torznab = prowlarrKey
+  ? indexerIds.map((id) => `${base}/${id}/api?apikey=${prowlarrKey}`)
+  : [];
+
 module.exports = {
   action: "inject",
   useClientTorrents: true,
-
-  torznab: prowlarrKey
-    ? [
-        `${prowlarrUrl.replace(
-          /\/$/,
-          ""
-        )}/api/v1/indexer/torznab/all?apikey=${prowlarrKey}`,
-      ]
-    : [],
-
+  torznab,
   torrentClients: [`qbittorrent:http://${qbAuth}${qbHost}:${qbPort}`],
-
   matchMode: "strict",
   seasonFromEpisodes: null,
-
-  linkDirs: [
-    "/cross-seeds", // MUST match the cross-seed volume, not /downloads
-  ],
+  linkDirs: ["/share/downloads"],
 };
