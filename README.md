@@ -2,7 +2,7 @@
 
 Welcome to my Plex stack repository! This repository showcases my Docker Compose setup for managing various media-related services using Docker containers. The compose file is meant to be changed to each users liking as I know not everyone has the same requirements. Hope you enjoy!
 
-Currently you can choose from the **Basic** or the **Advanced** compose
+Currently you can choose from the **Basic** or the **Advanced** compose using Docker Compose profiles.
 
 ## Overview
 
@@ -23,20 +23,13 @@ Currently you can choose from the **Basic** or the **Advanced** compose
 - **Prowlarr:** Indexer manager for Radarr and Sonarr.
 - **Overseerr:** Request management and monitoring for Plex.
 - **Qbittorrent:** BitTorrent client with VPN support.
-- **Tdarr:** Pre-transcodes your media to decrease file sizes
-- **Membarr:** Invite users to your Plex via discord
+- **Unpackerr:** Automatically extracts downloads for Sonarr/Radarr.
 - **Tautulli:** Analytics and monitoring for Plex.
 - **Bazarr:** Subtitle management for movies and TV shows.
 - **Autobrr:** Used to grab torrents immediately as they are released.
-- **Readarr:** Used to grab books and audiobooks.
-- **Lidarr:** Used to grab music.
+- **Cross-seed:** Used to find and add cross-seeds for existing torrents.
 - **Flaresolverr:** Used as a proxy server to bypass Cloudflare and DDoS-GUARD protection.
 - **Dozzle:** Used to view the logs of any container.
-- **Wizarr:** Used to create links that can be sent to users so they can be invited to your media server.
-- **Plex Meta Manager:** Used to create collections, overlays, playlists and much more!
-- **Plex Auto Lanaguages:** Used to auto update the language of your Plex Tv episodes
-- **Recylarr:** Used to sync the config of trash guides with your arr stack
-
 
 ## Dependencies
 
@@ -50,15 +43,35 @@ Currently you can choose from the **Basic** or the **Advanced** compose
 
    ```bash
    git clone https://github.com/DonMcD/ultimate-plex-stack.git
-2. Fill in the required details such as the environment variables
-3. OPTIONAL: Setup a reverse proxy so you can use radarr.my-domain.com instead of 192.168.1.10 to access each of your apps
+   ```
+
+2. Copy `.env.example` to `.env` and fill in the required details
+3. (Recommended) Pin images to immutable digests:
+
+   ```bash
+   ./scripts/pin-images.sh .env
+   ```
+4. Start the stack:
+
+   ```bash
+   # Basic profile (default services)
+   docker compose up -d
+
+   # Advanced profile (adds extra services)
+   docker compose --profile advanced up -d
+   ```
+
+5. OPTIONAL: Setup a reverse proxy so you can use radarr.my-domain.com instead of 192.168.1.10 to access each of your apps
+
+Docker Compose reads `.env` automatically. The pinning script keeps your stack stable by locking to digests.
 
 ## Example of Environment variables in Portainer
+
 Keep in mind some variable names have changed since this screenshot was taken
 <img width="657" alt="image" src="https://github.com/DonMcD/ultimate-plex-stack/assets/90471623/9a614eb0-8ff7-4eb9-b154-61c08cd595e9">
 
-  
 File location examples:
+
 - {MEDIA_SHARE} = /share
 - {BASE_PATH} = /home/username/docker
 
@@ -66,15 +79,12 @@ To allow hardlinking to work (which you will definitely want!) you will have to 
 
 An example of my folder structure:  
 ![image](https://github.com/DonMcD/ultimate-plex-stack/assets/90471623/2003ac26-a929-4ff6-ad67-e35fc51fb51a)
-  
-- Feel free to expand your folders to also include "books" or "music" as you need for your setup
-  
 
-  
+- Feel free to expand your folders to also include "books" or "music" as you need for your setup
+
 1. In Radarr you will want to set your category to "movies", this will create the movies folder
 2. In Sonarr you will want to set your category to "tv", this will create the tv folder
 
-  
 Anytime you reference your media folder in a container you want the path to look like /share/media/tv instead of /tv like a lot of the default guides say, if you do end up mapping the path as /tv hardlinking will not work
 
 ## Possible Additions
@@ -82,4 +92,3 @@ Anytime you reference your media folder in a container you want the path to look
 1. Organizr - Creates a lovely dashboard to help navigate to all of your apps
 2. Portainer - Docker GUI
 3. UptimeKuma - Gives you the ability to monitor your services
-
