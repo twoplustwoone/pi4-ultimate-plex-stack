@@ -1,6 +1,12 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   plex:
-    image: lscr.io/linuxserver/plex:latest
+    image: ${PLEX_IMAGE:-lscr.io/linuxserver/plex:latest}
     container_name: plex
     network_mode: host
     environment:
@@ -8,16 +14,24 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - VERSION=docker
-      - PLEX_CLAIM=${PLEX_CLAIM}
+      - PLEX_CLAIM=${PLEX_CLAIM:-}
     devices:
       - /dev/dri:/dev/dri
     volumes:
       - ${BASE_PATH}/plex/config:/config
       - ${MEDIA_SHARE}:/share
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://127.0.0.1:32400/identity > /dev/null || wget -q -O- http://127.0.0.1:32400/identity > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   radarr:
-    image: lscr.io/linuxserver/radarr:latest
+    image: ${RADARR_IMAGE:-lscr.io/linuxserver/radarr:latest}
     container_name: radarr
     environment:
       - PUID=${PUID}
@@ -29,9 +43,17 @@ services:
     ports:
       - 7878:7878
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:7878/ > /dev/null || wget -q -O- http://localhost:7878/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
+    image: ${SONARR_IMAGE:-lscr.io/linuxserver/sonarr:latest}
     container_name: sonarr
     environment:
       - PUID=${PUID}
@@ -43,9 +65,17 @@ services:
     ports:
       - 8989:8989
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8989/ > /dev/null || wget -q -O- http://localhost:8989/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   overseerr:
-    image: ghcr.io/sct/overseerr:latest
+    image: ${OVERSEERR_IMAGE:-ghcr.io/sct/overseerr:latest}
     container_name: overseerr
     environment:
       - PUID=${PUID}
@@ -57,9 +87,17 @@ services:
     ports:
       - 5055:5055
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:5055/ > /dev/null || wget -q -O- http://localhost:5055/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
+    image: ${QBITTORRENT_IMAGE:-lscr.io/linuxserver/qbittorrent:latest}
     container_name: qbittorrent
     network_mode: "service:gluetun"
     environment:
@@ -71,11 +109,20 @@ services:
       - ${BASE_PATH}/qbittorrent/config:/config
       - ${MEDIA_SHARE}:/share
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
     depends_on:
-      - gluetun
+      gluetun:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8080/ > /dev/null || wget -q -O- http://localhost:8080/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   gluetun:
-    image: qmcgaw/gluetun:latest
+    image: ${GLUETUN_IMAGE:-qmcgaw/gluetun:latest}
     container_name: gluetun
     cap_add:
       - NET_ADMIN
@@ -88,28 +135,50 @@ services:
       - VPN_TYPE=openvpn
       - OPENVPN_USER=${OPENVPN_USER}
       - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
-      - TZ=America/New_York
+      - TZ=${TZ}
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "ip route show default | grep -Eq 'tun|wg'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   unpackerr:
-    image: golift/unpackerr:latest
+    image: ${UNPACKERR_IMAGE:-golift/unpackerr:latest}
     container_name: unpackerr
-    user: 1000:1000
+    profiles: ["advanced"]
+    user: "${PUID}:${PGID}"
     environment:
       - TZ=${TZ}
       - UN_START_DELAY=1m
-      - UN_SONARR_0_URL=http://${SERVER_IP}:8989
+      - UN_SONARR_0_URL=http://sonarr:8989
       - UN_SONARR_0_API_KEY=${SONARR_KEY}
       - UN_SONARR_0_TIMEOUT=10s
-      - UN_RADARR_0_URL=http://${SERVER_IP}:7878
+      - UN_RADARR_0_URL=http://radarr:7878
       - UN_RADARR_0_API_KEY=${RADARR_KEY}
       - UN_RADARR_0_TIMEOUT=10s
     volumes:
       - ${MEDIA_SHARE}:/share
-    restart: always
+    restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    depends_on:
+      sonarr:
+        condition: service_healthy
+      radarr:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -q '[u]npackerr'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: ${PROWLARR_IMAGE:-lscr.io/linuxserver/prowlarr:latest}
     container_name: prowlarr
     environment:
       - PUID=${PUID}
@@ -120,10 +189,19 @@ services:
     ports:
       - 9696:9696
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:9696/ > /dev/null || wget -q -O- http://localhost:9696/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   tautulli:
-    image: lscr.io/linuxserver/tautulli:latest
+    image: ${TAUTULLI_IMAGE:-lscr.io/linuxserver/tautulli:latest}
     container_name: tautulli
+    profiles: ["advanced"]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -133,10 +211,19 @@ services:
     ports:
       - 8181:8181
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8181/ > /dev/null || wget -q -O- http://localhost:8181/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   bazarr:
-    image: lscr.io/linuxserver/bazarr:latest
+    image: ${BAZARR_IMAGE:-lscr.io/linuxserver/bazarr:latest}
     container_name: bazarr
+    profiles: ["advanced"]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -147,10 +234,19 @@ services:
     ports:
       - 6767:6767
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:6767/ > /dev/null || wget -q -O- http://localhost:6767/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   cross-seed:
-    image: ghcr.io/cross-seed/cross-seed:latest
+    image: ${CROSS_SEED_IMAGE:-ghcr.io/cross-seed/cross-seed:latest}
     container_name: cross-seed
+    profiles: ["advanced"]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -162,10 +258,22 @@ services:
       - "2468:2468"
     command: daemon
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    depends_on:
+      qbittorrent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:2468/ > /dev/null || wget -q -O- http://localhost:2468/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   autobrr:
     container_name: autobrr
-    image: ghcr.io/autobrr/autobrr:latest
+    image: ${AUTOBRR_IMAGE:-ghcr.io/autobrr/autobrr:latest}
+    profiles: ["advanced"]
     environment:
       - TZ=${TZ}
       - PUID=${PUID}
@@ -175,19 +283,37 @@ services:
     ports:
       - 7474:7474
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:7474/ > /dev/null || wget -q -O- http://localhost:7474/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   dozzle:
-    image: amir20/dozzle:latest
+    image: ${DOZZLE_IMAGE:-amir20/dozzle:latest}
     container_name: dozzle
+    profiles: ["advanced"]
     ports:
       - 9999:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8080/ > /dev/null || wget -q -O- http://localhost:8080/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
+    image: ${FLARESOLVERR_IMAGE:-ghcr.io/flaresolverr/flaresolverr:latest}
     container_name: flaresolverr
+    profiles: ["advanced"]
     environment:
       - LOG_LEVEL=info
       - LOG_HTML=false
@@ -196,3 +322,11 @@ services:
     ports:
       - 8191:8191
     restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8191/ > /dev/null || wget -q -O- http://localhost:8191/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
