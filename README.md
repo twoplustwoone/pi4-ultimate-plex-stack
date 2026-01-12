@@ -30,6 +30,8 @@ Currently you can choose from the **Basic** or the **Advanced** compose using Do
 - **Cross-seed:** Used to find and add cross-seeds for existing torrents.
 - **Flaresolverr:** Used as a proxy server to bypass Cloudflare and DDoS-GUARD protection.
 - **Dozzle:** Used to view the logs of any container.
+- **Watchtower:** Automatically updates containers when new images are available.
+- **Uptime Kuma:** Monitors service uptime and sends alerts on failures.
 
 ## Dependencies
 
@@ -51,6 +53,7 @@ Currently you can choose from the **Basic** or the **Advanced** compose using Do
    ```bash
    ./scripts/pin-images.sh .env
    ```
+
 4. Start the stack:
 
    ```bash
@@ -89,8 +92,118 @@ An example of my folder structure:
 
 Anytime you reference your media folder in a container you want the path to look like /share/media/tv instead of /tv like a lot of the default guides say, if you do end up mapping the path as /tv hardlinking will not work
 
+## Notifications & Monitoring
+
+This stack includes **Watchtower** for automated container updates and **Uptime Kuma** (advanced profile) for monitoring container health. Both can send notifications via Discord webhooks and email.
+
+### Watchtower (Auto-Updates)
+
+Watchtower automatically monitors and updates your containers when new images are available. It's configured to:
+
+- Check for updates daily (configurable)
+- Clean up old images after updates
+- Send notifications via Discord and/or email when updates occur
+
+**Configuration:**
+
+1. Set up `WATCHTOWER_NOTIFICATION_URL` in your environment file (e.g. `.env`)
+
+2. **Discord Notifications:**
+
+   - Create a Discord webhook in your server (Server Settings → Integrations → Webhooks)
+   - Use format: `discord://<webhook-id>/<webhook-token>`
+   - Example: `discord://123456789012345678/abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ12`
+
+3. **Email Notifications:**
+
+   - Use Shoutrrr email format: `email://smtp.example.com:587/?from=from@example.com&to=to@example.com&auth=plain&user=user&pass=pass`
+   - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password
+   - Example: `email://smtp.gmail.com:587/?from=you@gmail.com&to=you@gmail.com&auth=plain&user=you@gmail.com&pass=yourapppassword`
+
+4. **Multiple Notifications:**
+   - Combine Discord and email by comma-separating URLs:
+   - `WATCHTOWER_NOTIFICATION_URL=discord://id/token,email://smtp.example.com:587/?from=from@example.com&to=to@example.com&auth=plain&user=user&pass=pass`
+
+**Excluding Containers from Auto-Updates:**
+
+To prevent specific containers from being automatically updated, add this label to the service in `docker-compose.yml`:
+
+```yaml
+labels:
+  - "com.centurylinklabs.watchtower.enable=false"
+```
+
+**Risks & Considerations:**
+
+- **Breaking Changes:** Auto-updates may introduce incompatible changes. Consider excluding critical containers initially.
+- **Testing:** Test updates in a staging environment when possible.
+- **Rollback:** Keep backups of your configuration volumes in case an update causes issues.
+
+### Uptime Kuma (Health Monitoring)
+
+Uptime Kuma monitors your services and sends alerts when they go down or fail health checks. It's available in the "advanced" profile.
+
+**Setup:**
+
+1. Start the stack with the advanced profile:
+
+   ```bash
+   docker compose --profile advanced up -d
+   ```
+
+2. Access the dashboard at `http://<your-pi-ip>:3001`
+
+3. **Initial Configuration:**
+
+   - Create an admin account on first access
+   - Add monitors for each service (Plex, Radarr, Sonarr, etc.)
+   - Configure notification channels (Discord, Email, etc.)
+
+4. **Configure Notifications:**
+
+   - Go to Settings → Notifications
+   - Add Discord webhook (uses standard Discord webhook URL format)
+   - Add Email notification (SMTP configuration)
+   - Test notifications to ensure they work
+
+5. **Add Monitors:**
+   - Click "Add New Monitor"
+   - Select monitor type (HTTP(s), TCP, etc.)
+   - Enter service URL (e.g., `http://localhost:7878` for Radarr)
+   - Set check interval (default: 60 seconds)
+   - Assign notification channels
+
+**Example Monitor URLs:**
+
+- Radarr: `http://localhost:7878`
+- Sonarr: `http://localhost:8989`
+- Plex: `http://localhost:32400`
+- Overseerr: `http://localhost:5055`
+- Uptime Kuma: `http://localhost:3001`
+
+**Note:** Use `localhost` for services on the same host, or use the container network names (e.g., `http://radarr:7878`) if monitoring from within the Docker network.
+
+**Risks & Considerations:**
+
+- **False Positives:** Network issues or slow responses may trigger false alerts. Fine-tune check intervals and retry settings.
+- **Resource Usage:** Uptime Kuma uses minimal resources (~50-100MB RAM) but adds overhead.
+- **Notification Fatigue:** Configure appropriate alert thresholds to avoid being overwhelmed.
+
+### Notification Channel Setup
+
+**Discord Webhook:**
+
+1. Go to your Discord server → Server Settings → Integrations → Webhooks
+2. Click "New Webhook" and copy the webhook URL
+3. For Watchtower: Extract the ID and token from the URL (format: `https://discord.com/api/webhooks/<ID>/<TOKEN>`) and use `discord://<ID>/<TOKEN>`
+4. For Uptime Kuma: Use the full webhook URL directly
+
+**Email (SMTP):**
+
+- **Gmail:** Use an App Password (not your regular password). Enable 2FA first, then generate an App Password at https://myaccount.google.com/apppasswords
+- **Other Providers:** Use your SMTP server details (host, port, username, password)
+
 ## Possible Additions
 
 1. Organizr - Creates a lovely dashboard to help navigate to all of your apps
 2. Portainer - Docker GUI
-3. UptimeKuma - Gives you the ability to monitor your services

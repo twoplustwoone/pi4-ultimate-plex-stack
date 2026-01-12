@@ -24,7 +24,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://127.0.0.1:32400/identity > /dev/null || wget -q -O- http://127.0.0.1:32400/identity > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://127.0.0.1:32400/identity > /dev/null || wget -q -O- http://127.0.0.1:32400/identity > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -46,7 +50,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:7878/ > /dev/null || wget -q -O- http://localhost:7878/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:7878/ > /dev/null || wget -q -O- http://localhost:7878/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -68,7 +76,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:8989/ > /dev/null || wget -q -O- http://localhost:8989/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:8989/ > /dev/null || wget -q -O- http://localhost:8989/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -90,7 +102,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:5055/ > /dev/null || wget -q -O- http://localhost:5055/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:5055/ > /dev/null || wget -q -O- http://localhost:5055/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -115,7 +131,11 @@ services:
       gluetun:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:8080/ > /dev/null || wget -q -O- http://localhost:8080/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:8080/ > /dev/null || wget -q -O- http://localhost:8080/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -192,7 +212,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:9696/ > /dev/null || wget -q -O- http://localhost:9696/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:9696/ > /dev/null || wget -q -O- http://localhost:9696/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -214,7 +238,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:8181/ > /dev/null || wget -q -O- http://localhost:8181/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:8181/ > /dev/null || wget -q -O- http://localhost:8181/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -237,7 +265,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:6767/ > /dev/null || wget -q -O- http://localhost:6767/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:6767/ > /dev/null || wget -q -O- http://localhost:6767/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -274,7 +306,11 @@ services:
       qbittorrent:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:2468/api/ping > /dev/null || wget -q -O- http://localhost:2468/api/ping > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:2468/api/ping > /dev/null || wget -q -O- http://localhost:2468/api/ping > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -296,7 +332,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:7474/ > /dev/null || wget -q -O- http://localhost:7474/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:7474/ > /dev/null || wget -q -O- http://localhost:7474/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -314,7 +354,11 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:8080/ > /dev/null || wget -q -O- http://localhost:8080/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:8080/ > /dev/null || wget -q -O- http://localhost:8080/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -335,8 +379,55 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS http://localhost:8191/ > /dev/null || wget -q -O- http://localhost:8191/ > /dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:8191/ > /dev/null || wget -q -O- http://localhost:8191/ > /dev/null",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  watchtower:
+    image: ${WATCHTOWER_IMAGE:-containrrr/watchtower:latest}
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=${TZ}
+      - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      - WATCHTOWER_NOTIFICATION_URL=${WATCHTOWER_NOTIFICATION_URL}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_STOPPED=false
+      - WATCHTOWER_REVIVE_STOPPED=false
+      - WATCHTOWER_LIFE_CYCLE_HOOKS=false
+      - WATCHTOWER_ROLLING_RESTART=false
+      - WATCHTOWER_INTERVAL=86400
+      - WATCHTOWER_SCHEDULE=
+      - WATCHTOWER_LOG_LEVEL=info
+    restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+
+  uptime-kuma:
+    image: ${UPTIME_KUMA_IMAGE:-louislam/uptime-kuma:1}
+    container_name: uptime-kuma
+    profiles: ["advanced"]
+    ports:
+      - 3001:3001
+    volumes:
+      - ${BASE_PATH}/uptime-kuma:/app/data
+    restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:3001/ > /dev/null || wget -q -O- http://localhost:3001/ > /dev/null",
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
