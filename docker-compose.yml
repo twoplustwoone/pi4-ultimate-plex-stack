@@ -407,6 +407,7 @@ services:
       - WATCHTOWER_SCHEDULE=
       - WATCHTOWER_LOG_LEVEL=info
       - WATCHTOWER_NOTIFICATION_REPORT=true
+      - WATCHTOWER_NOTIFICATION_REPORT_ONLY=true
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
