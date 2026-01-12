@@ -406,6 +406,7 @@ services:
       - WATCHTOWER_INTERVAL=86400
       - WATCHTOWER_SCHEDULE=
       - WATCHTOWER_LOG_LEVEL=info
+      - WATCHTOWER_NOTIFICATION_REPORT=true
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
