@@ -183,6 +183,37 @@ Uptime Kuma monitors your services and sends alerts when they go down or fail he
 
 **Note:** Use `localhost` for services on the same host, or use the container network names (e.g., `http://radarr:7878`) if monitoring from within the Docker network.
 
+#### Recommended Cloudflare Tunnel Monitors (Uptime Kuma)
+
+To detect real external-access failures (while keeping alerting in Uptime Kuma only), add these monitors:
+
+1. `overseerr-external` (HTTP(s))
+   - URL: `https://overseerr.twoplustwoone.dev`
+   - Accepted status codes: `200-399`
+   - Interval: `30s`
+   - Timeout: `10s`
+   - Retries: `3`
+2. `radarr-external` (HTTP(s))
+   - URL: `https://radarr.twoplustwoone.dev`
+   - Accepted status codes: `200-399`
+   - Interval: `30s`
+   - Timeout: `10s`
+   - Retries: `3`
+3. `sonarr-external` (HTTP(s))
+   - URL: `https://sonarr.twoplustwoone.dev`
+   - Accepted status codes: `200-399`
+   - Interval: `30s`
+   - Timeout: `10s`
+   - Retries: `3`
+4. `cloudflared-metrics` (HTTP(s))
+   - URL: `http://cloudflared:20241/metrics`
+   - Accepted status code: `200`
+   - Interval: `30s`
+   - Timeout: `10s`
+   - Retries: `3`
+
+`cloudflared:20241` only resolves from inside the Docker network, so create this monitor from the Uptime Kuma container context (default behavior when Kuma runs in this stack).
+
 **Risks & Considerations:**
 
 - **False Positives:** Network issues or slow responses may trigger false alerts. Fine-tune check intervals and retry settings.
@@ -339,6 +370,50 @@ After setup, your services will be accessible at:
 - **Services not accessible:** Check that routes are configured correctly in Cloudflare Dashboard (Service should point to `http://localhost:<port>`)
 - **SSL errors:** Cloudflare provides SSL automatically - ensure your domain DNS is pointing to Cloudflare nameservers
 - **Container logs:** Check logs with `docker compose logs cloudflared`
+
+#### Runbook: Healthy Container but Service Inaccessible
+
+Use this order so you can separate healthcheck issues from real tunnel outages:
+
+1. Verify container health and startup mode:
+
+   ```bash
+   docker ps --format 'table {{.Names}}\t{{.Status}}' | grep cloudflared
+   docker logs --tail=120 cloudflared
+   ```
+
+   Confirm logs include:
+   - `Initial protocol http2`
+   - `Registered tunnel connection` (normally 4 connections)
+
+2. Verify public ingress endpoints from a client machine:
+
+   ```bash
+   curl -I https://overseerr.twoplustwoone.dev
+   curl -I https://radarr.twoplustwoone.dev
+   curl -I https://sonarr.twoplustwoone.dev
+   ```
+
+   Expected: `200` or `302`.
+
+3. Verify Uptime Kuma monitor state:
+   - `overseerr-external`, `radarr-external`, `sonarr-external` should be Up
+   - `cloudflared-metrics` should be Up (`http://cloudflared:20241/metrics`)
+
+#### Symptom Mapping
+
+- `lookup ... i/o timeout` in cloudflared logs:
+  - Typical cause: DNS resolver timeout inside the container/network path.
+  - Action: keep Cloudflared DNS pinned (`1.1.1.1`, `1.0.0.1`), then check upstream DNS/network stability.
+- `QUIC` timeout errors:
+  - Typical cause: unstable UDP path or middlebox behavior.
+  - Action: force HTTP/2 transport (`tunnel --protocol http2 run`).
+- Kuma external monitor Down, cloudflared-metrics Up:
+  - Typical cause: Cloudflare ingress/public hostname routing issue.
+  - Action: verify tunnel public hostnames and service targets in Cloudflare Dashboard.
+- Kuma external monitor Down, cloudflared-metrics Down:
+  - Typical cause: Cloudflared process/network failure on host.
+  - Action: restart cloudflared and check container logs immediately.
 
 ### Security Considerations
 
