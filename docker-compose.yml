@@ -437,6 +437,9 @@ services:
     command: tunnel --protocol http2 run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
     volumes:
       - ${BASE_PATH}/cloudflared:/etc/cloudflared
     restart: unless-stopped
