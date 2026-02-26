@@ -354,11 +354,8 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -sS http://localhost:8080/ > /dev/null || wget -q -O- http://localhost:8080/ > /dev/null",
-        ]
+      # Dozzle image is distroless on some tags (no /bin/sh, curl, or wget).
+      test: ["CMD", "/dozzle", "--version"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -437,7 +434,7 @@ services:
   cloudflared:
     image: ${CLOUDFLARE_IMAGE:-cloudflare/cloudflared:latest}
     container_name: cloudflared
-    command: tunnel run
+    command: tunnel --protocol http2 run
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     volumes:
@@ -446,7 +443,8 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "pgrep cloudflared > /dev/null"]
+      # Cloudflared image may not include /bin/sh; avoid CMD-SHELL checks.
+      test: ["CMD", "cloudflared", "--version"]
       interval: 30s
       timeout: 10s
       retries: 3
