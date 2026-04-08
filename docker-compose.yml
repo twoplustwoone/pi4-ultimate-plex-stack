@@ -419,6 +419,12 @@ services:
       - WATCHTOWER_LOG_LEVEL=info
       - WATCHTOWER_NOTIFICATION_REPORT=true
       - WATCHTOWER_NOTIFICATION_REPORT_ONLY=true
+      # Monitor-only mode: Watchtower will notify you of available updates but
+      # will NOT apply them automatically. Apply updates intentionally by running:
+      #   docker compose pull && docker compose up -d
+      # To re-enable auto-updates for specific containers, remove this line and
+      # add label "com.centurylinklabs.watchtower.enable=true" to those services.
+      - WATCHTOWER_MONITOR_ONLY=true
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
