@@ -471,6 +471,67 @@ services:
       retries: 3
       start_period: 40s
 
+  # netdata: lightweight system-level metrics with per-container CPU/RAM/network,
+  # disk, and Pi temperature monitoring. Dashboards at http://<pi-ip>:19999.
+  # Uses network_mode: host (same as Plex) — no port mapping needed.
+  # Optional: set NETDATA_CLAIM_TOKEN in .env to connect to Netdata Cloud for
+  # remote dashboard access without exposing port 19999 through Cloudflare.
+  netdata:
+    image: ${NETDATA_IMAGE:-netdata/netdata:stable}
+    container_name: netdata
+    profiles: ["advanced"]
+    pid: host
+    network_mode: host
+    restart: unless-stopped
+    pull_policy: if_not_present
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - netdataconfig:/etc/netdata
+      - netdatalib:/var/lib/netdata
+      - netdatacache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - NETDATA_CLAIM_TOKEN=${NETDATA_CLAIM_TOKEN:-}
+      - NETDATA_CLAIM_URL=https://app.netdata.cloud
+    logging: *default-logging
+
+  # portainer: web UI for Docker management — view containers, logs, resource
+  # usage, restart services — without needing SSH.
+  # Protect with Cloudflare Access if you expose it externally; do not expose
+  # it without Access authentication.
+  portainer:
+    image: ${PORTAINER_IMAGE:-portainer/portainer-ce:latest}
+    container_name: portainer
+    profiles: ["advanced"]
+    restart: unless-stopped
+    pull_policy: if_not_present
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${BASE_PATH}/portainer:/data
+    ports:
+      - "9000:9000"
+    logging: *default-logging
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:9000/ > /dev/null || wget -q -O- http://localhost:9000/ > /dev/null",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
   cloudflared:
     image: ${CLOUDFLARE_IMAGE:-cloudflare/cloudflared:latest}
     container_name: cloudflared
@@ -494,3 +555,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+
+volumes:
+  netdataconfig:
+  netdatalib:
+  netdatacache:
