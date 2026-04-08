@@ -1,20 +1,13 @@
 #!/usr/bin/env bash
-# backup-configs.sh — backs up all Docker config volumes to a remote destination.
-#
-# Usage:
-#   ./scripts/backup-configs.sh [destination]
-#
-# destination defaults to BACKUP_DEST environment variable, or prompts if unset.
-#
-# Examples:
-#   BACKUP_DEST="user@nas:/backups/pi4-plex" ./scripts/backup-configs.sh
-#   ./scripts/backup-configs.sh user@nas:/backups/pi4-plex
-#   ./scripts/backup-configs.sh /mnt/backup-drive/pi4-plex
+# backup-configs.sh — backs up all Docker config volumes to Cloudflare R2.
 #
 # Prerequisites:
-#   - rsync installed on Pi (sudo apt install rsync)
-#   - SSH key-based auth configured if using a remote destination
-#   - BASE_PATH set in environment or sourced from .env
+#   - rclone installed and configured with an "r2" remote pointing to Cloudflare R2
+#     (run `rclone config` to set up — see MANUAL-TASKS.md for full instructions)
+#   - BASE_PATH set in .env (or exported in the environment)
+#
+# Usage:
+#   ./scripts/backup-configs.sh
 #
 # Scheduling (add to crontab with: crontab -e):
 #   0 3 * * * /home/pi/pi4-ultimate-plex-stack/scripts/backup-configs.sh >> /var/log/plex-backup.log 2>&1
@@ -32,16 +25,9 @@ if [[ -f "$REPO_ROOT/.env" ]]; then
   set +a
 fi
 
-# Resolve destination
-DEST="${1:-${BACKUP_DEST:-}}"
-if [[ -z "$DEST" ]]; then
-  echo "Error: no backup destination specified." >&2
-  echo "Set BACKUP_DEST in your environment or pass it as the first argument." >&2
-  echo "Example: $0 user@nas:/backups/pi4-plex" >&2
-  exit 1
-fi
-
-BASE="${BASE_PATH:-/home/pi/ups-configs}"
+BASE="${BASE_PATH:?BASE_PATH must be set in .env or the environment}"
+R2_BUCKET="${R2_BUCKET:-pi4-plex-backups}"
+R2_REMOTE="${R2_REMOTE:-r2}"
 
 # Services to back up — matches the config volume paths in docker-compose.yml
 SERVICES=(
@@ -60,7 +46,7 @@ SERVICES=(
 
 LOG_PREFIX="[$(date '+%Y-%m-%d %H:%M:%S')] backup-configs:"
 
-echo "$LOG_PREFIX Starting backup to $DEST"
+echo "$LOG_PREFIX Starting backup to ${R2_REMOTE}:${R2_BUCKET}"
 
 # --- Plex: stop briefly for a clean database snapshot ---
 PLEX_RUNNING=false
@@ -78,14 +64,10 @@ for service in "${SERVICES[@]}"; do
     continue
   fi
   echo "$LOG_PREFIX Syncing $service..."
-  rsync -az --delete \
-    --exclude='*.log' \
-    --exclude='Logs/' \
-    --exclude='logs/' \
-    --exclude='cache/' \
-    --exclude='Cache/' \
-    "$src/" \
-    "$DEST/$service/"
+  rclone sync "$src/" "${R2_REMOTE}:${R2_BUCKET}/${service}/" \
+    --transfers=2 \
+    --checksum \
+    --log-level INFO
 done
 
 # --- Restart Plex if it was stopped ---
