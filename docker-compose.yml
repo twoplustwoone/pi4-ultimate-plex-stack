@@ -20,6 +20,8 @@ services:
     volumes:
       - ${BASE_PATH}/plex/config:/config
       - ${MEDIA_SHARE}:/share
+    labels:
+      - "autoheal.enable=true"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -46,6 +48,8 @@ services:
       - ${MEDIA_SHARE}:/share
     ports:
       - 7878:7878
+    labels:
+      - "autoheal.enable=true"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -72,6 +76,8 @@ services:
       - ${MEDIA_SHARE}:/share
     ports:
       - 8989:8989
+    labels:
+      - "autoheal.enable=true"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -98,6 +104,8 @@ services:
       - ${MEDIA_SHARE}:/share
     ports:
       - 5055:5055
+    labels:
+      - "autoheal.enable=true"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -124,6 +132,8 @@ services:
     volumes:
       - ${BASE_PATH}/qbittorrent/config:/config
       - ${MEDIA_SHARE}:/share
+    # NOTE: No autoheal label — qBittorrent must fail with Gluetun, not restart
+    # independently into a no-VPN state. The depends_on below handles this.
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -156,6 +166,8 @@ services:
       - OPENVPN_USER=${OPENVPN_USER}
       - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
       - TZ=${TZ}
+    labels:
+      - "autoheal.enable=true"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -208,6 +220,8 @@ services:
       - ${BASE_PATH}/prowlarr/config:/config
     ports:
       - 9696:9696
+    labels:
+      - "autoheal.enable=true"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -409,6 +423,24 @@ services:
     pull_policy: if_not_present
     logging: *default-logging
 
+  # autoheal: restarts containers that are marked unhealthy by their healthcheck.
+  # Docker's restart policies only trigger on container exit — a running-but-unhealthy
+  # container will never be restarted by Docker itself without this service.
+  # Only containers with label "autoheal.enable=true" are watched.
+  autoheal:
+    image: ${AUTOHEAL_IMAGE:-willfarrell/autoheal:latest}
+    container_name: autoheal
+    restart: unless-stopped
+    pull_policy: if_not_present
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal.enable
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=0
+      - AUTOHEAL_DEFAULT_STOP_TIMEOUT=10
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    logging: *default-logging
+
   uptime-kuma:
     image: ${UPTIME_KUMA_IMAGE:-louislam/uptime-kuma:1}
     container_name: uptime-kuma
@@ -417,6 +449,8 @@ services:
       - 3001:3001
     volumes:
       - ${BASE_PATH}/uptime-kuma:/app/data
+    labels:
+      - "autoheal.enable=true"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -442,6 +476,8 @@ services:
       - 1.0.0.1
     volumes:
       - ${BASE_PATH}/cloudflared:/etc/cloudflared
+    labels:
+      - "autoheal.enable=true"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
