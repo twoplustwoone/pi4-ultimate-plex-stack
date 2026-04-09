@@ -70,10 +70,18 @@ for service in "${SERVICES[@]}"; do
   # needed for a restore. Plex rebuilds PhotoTranscoder thumbnails and logs
   # automatically on startup.
   if [[ "$service" == "plex/config" ]]; then
+    # Plex nests everything under Library/Application Support/Plex Media Server/
+    # Exclude regenerable/large directories that are not needed for a restore:
+    #   Cache       — PhotoTranscoder thumbnails and transcode temp files
+    #   Codecs      — platform binaries auto-downloaded by Plex on startup
+    #   Logs        — runtime logs, rebuilt each run
+    #   Crash Reports — not useful for restore
+    # Patterns without a leading / match anywhere in the directory tree.
     extra_args+=(
-      --exclude "Cache/PhotoTranscoder/**"
-      --exclude "Cache/Transcode/**"
+      --exclude "Cache/**"
+      --exclude "Codecs/**"
       --exclude "Logs/**"
+      --exclude "Crash Reports/**"
       --exclude "*.log"
       --exclude "*.log.*"
     )
