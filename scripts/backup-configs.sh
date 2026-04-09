@@ -41,7 +41,8 @@ SERVICES=(
   uptime-kuma
   autobrr/config
   cloudflared
-  portainer
+  # portainer intentionally excluded — files owned by root, not readable by pi.
+  # Portainer is trivially reconfigurable; its DB isn't worth the sudo complexity.
 )
 
 LOG_PREFIX="[$(date '+%Y-%m-%d %H:%M:%S')] backup-configs:"
