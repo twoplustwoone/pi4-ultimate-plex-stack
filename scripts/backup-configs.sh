@@ -82,6 +82,7 @@ for service in "${SERVICES[@]}"; do
       --exclude "Codecs/**"
       --exclude "Logs/**"
       --exclude "Crash Reports/**"
+      --exclude "Media/**"
       --exclude "*.log"
       --exclude "*.log.*"
     )
