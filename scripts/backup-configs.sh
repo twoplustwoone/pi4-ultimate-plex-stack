@@ -65,26 +65,23 @@ for service in "${SERVICES[@]}"; do
   fi
   echo "$LOG_PREFIX Syncing $service..."
 
-  extra_args=()
-  # For Plex, exclude regenerable cache and logs — these are large and not
-  # needed for a restore. Plex rebuilds PhotoTranscoder thumbnails and logs
-  # automatically on startup.
+  # Common excludes — apply to all services.
+  # These are regenerable caches that every *arr app and Plex rebuild on startup.
+  extra_args=(
+    --exclude "MediaCover/**"   # Radarr/Sonarr poster & fanart cache — re-downloaded on startup
+    --exclude "*.log"
+    --exclude "*.log.*"
+  )
+
+  # Plex-specific excludes — additional regenerable directories nested under
+  # Library/Application Support/Plex Media Server/
   if [[ "$service" == "plex/config" ]]; then
-    # Plex nests everything under Library/Application Support/Plex Media Server/
-    # Exclude regenerable/large directories that are not needed for a restore:
-    #   Cache       — PhotoTranscoder thumbnails and transcode temp files
-    #   Codecs      — platform binaries auto-downloaded by Plex on startup
-    #   Logs        — runtime logs, rebuilt each run
-    #   Crash Reports — not useful for restore
-    # Patterns without a leading / match anywhere in the directory tree.
     extra_args+=(
-      --exclude "Cache/**"
-      --exclude "Codecs/**"
-      --exclude "Logs/**"
-      --exclude "Crash Reports/**"
-      --exclude "Media/**"
-      --exclude "*.log"
-      --exclude "*.log.*"
+      --exclude "Cache/**"          # PhotoTranscoder thumbnails & transcode temp files
+      --exclude "Codecs/**"         # Platform binaries auto-downloaded by Plex on startup
+      --exclude "Logs/**"           # Runtime logs, rebuilt each run
+      --exclude "Crash Reports/**"  # Not useful for restore
+      --exclude "Media/**"          # Analysis data: chapter thumbnails, GoP indexes, video thumbnails
     )
   fi
 
