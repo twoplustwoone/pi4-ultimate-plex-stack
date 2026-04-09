@@ -48,13 +48,23 @@ LOG_PREFIX="[$(date '+%Y-%m-%d %H:%M:%S')] backup-configs:"
 
 echo "$LOG_PREFIX Starting backup to ${R2_REMOTE}:${R2_BUCKET}"
 
-# --- Plex: stop briefly for a clean database snapshot ---
-PLEX_RUNNING=false
-if docker inspect --format '{{.State.Running}}' plex 2>/dev/null | grep -q true; then
-  PLEX_RUNNING=true
-  echo "$LOG_PREFIX Stopping plex for clean database snapshot..."
-  docker stop plex >/dev/null
-fi
+# Containers that must be stopped for a clean database snapshot.
+# These write to SQLite WAL files continuously and can't be safely copied live.
+STOP_FOR_BACKUP=(plex uptime-kuma)
+declare -A WAS_RUNNING
+
+for container in "${STOP_FOR_BACKUP[@]}"; do
+  if docker inspect --format '{{.State.Running}}' "$container" 2>/dev/null | grep -q true; then
+    WAS_RUNNING[$container]=true
+    echo "$LOG_PREFIX Stopping $container for clean snapshot..."
+    docker stop "$container" >/dev/null
+  else
+    WAS_RUNNING[$container]=false
+  fi
+done
+
+# Track whether any service had errors (don't abort the whole run on one failure)
+BACKUP_ERRORS=0
 
 # --- Sync all config directories ---
 for service in "${SERVICES[@]}"; do
@@ -114,17 +124,27 @@ for service in "${SERVICES[@]}"; do
     )
   fi
 
-  rclone sync "$src/" "${R2_REMOTE}:${R2_BUCKET}/${service}/" \
+  if ! rclone sync "$src/" "${R2_REMOTE}:${R2_BUCKET}/${service}/" \
     --transfers=2 \
     --checksum \
     --log-level INFO \
-    "${extra_args[@]}"
+    "${extra_args[@]}"; then
+    echo "$LOG_PREFIX WARNING: $service completed with rclone errors (see above)"
+    BACKUP_ERRORS=$((BACKUP_ERRORS + 1))
+  fi
 done
 
-# --- Restart Plex if it was stopped ---
-if [[ "$PLEX_RUNNING" == "true" ]]; then
-  echo "$LOG_PREFIX Restarting plex..."
-  docker start plex >/dev/null
+# --- Restart any containers that were stopped ---
+for container in "${STOP_FOR_BACKUP[@]}"; do
+  if [[ "${WAS_RUNNING[$container]}" == "true" ]]; then
+    echo "$LOG_PREFIX Restarting $container..."
+    docker start "$container" >/dev/null
+  fi
+done
+
+if [[ $BACKUP_ERRORS -gt 0 ]]; then
+  echo "$LOG_PREFIX Backup finished with $BACKUP_ERRORS service(s) having errors."
+  exit 1
 fi
 
 echo "$LOG_PREFIX Backup complete."
