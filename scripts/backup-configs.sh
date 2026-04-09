@@ -65,21 +65,45 @@ for service in "${SERVICES[@]}"; do
   fi
   echo "$LOG_PREFIX Syncing $service..."
 
-  # Common excludes — apply to all services.
-  # These are regenerable caches that every *arr app and Plex rebuild on startup.
+  # -------------------------------------------------------------------------
+  # Global excludes — regenerable/ephemeral data across ALL services.
+  # These are never needed for a restore and should never be uploaded.
+  # -------------------------------------------------------------------------
   extra_args=(
-    --exclude "MediaCover/**"   # Radarr/Sonarr poster & fanart cache — re-downloaded on startup
+    # Log directories — different apps use different casings/names
+    --exclude "logs/**"         # *arr, overseerr, autobrr, tautulli (e.g. radarr.0.txt)
+    --exclude "log/**"          # Bazarr (singular)
+    --exclude "Logs/**"         # Plex-style uppercase
+
+    # Log databases — *arr stores logs in a separate SQLite DB, not needed for restore
+    --exclude "logs.db"
+    --exclude "logs.db-shm"
+    --exclude "logs.db-wal"
+
+    # Generic log files
     --exclude "*.log"
     --exclude "*.log.*"
+
+    # Cached artwork — Radarr/Sonarr/Prowlarr re-download these on startup
+    --exclude "MediaCover/**"
+
+    # Runtime ephemera
+    --exclude "*.pid"           # Process ID files — meaningless after a restart
+
+    # Regenerable caches
+    --exclude "cache/**"        # Tautulli thumbnail cache (lowercase)
+    --exclude "Cache/**"        # Plex-style uppercase (also caught in Plex block below)
+    --exclude "ecs/**"          # Radarr/Sonarr entity-component-system cache
+    --exclude "updatedata/**"   # *arr update-checker cache
   )
 
-  # Plex-specific excludes — additional regenerable directories nested under
+  # -------------------------------------------------------------------------
+  # Plex-specific excludes — large regenerable directories nested under
   # Library/Application Support/Plex Media Server/
+  # -------------------------------------------------------------------------
   if [[ "$service" == "plex/config" ]]; then
     extra_args+=(
-      --exclude "Cache/**"          # PhotoTranscoder thumbnails & transcode temp files
       --exclude "Codecs/**"         # Platform binaries auto-downloaded by Plex on startup
-      --exclude "Logs/**"           # Runtime logs, rebuilt each run
       --exclude "Crash Reports/**"  # Not useful for restore
       --exclude "Media/**"          # Analysis data: chapter thumbnails, GoP indexes, video thumbnails
     )
