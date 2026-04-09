@@ -96,6 +96,9 @@ for service in "${SERVICES[@]}"; do
     --exclude "ecs/**"          # Radarr/Sonarr entity-component-system cache
     --exclude "updatedata/**"   # *arr update-checker cache
     --exclude "Definitions/**"  # Prowlarr indexer definitions — auto-downloaded from GitHub on startup
+    --exclude "screenshots/**"  # Uptime Kuma monitoring screenshots — regenerated automatically
+    --exclude "bin/**"          # Portainer application binaries — downloaded on startup
+    --exclude "chisel/**"       # Portainer chisel binary — downloaded on startup
   )
 
   # -------------------------------------------------------------------------
