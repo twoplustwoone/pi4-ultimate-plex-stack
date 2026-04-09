@@ -95,6 +95,7 @@ for service in "${SERVICES[@]}"; do
     --exclude "Cache/**"        # Plex-style uppercase (also caught in Plex block below)
     --exclude "ecs/**"          # Radarr/Sonarr entity-component-system cache
     --exclude "updatedata/**"   # *arr update-checker cache
+    --exclude "Definitions/**"  # Prowlarr indexer definitions — auto-downloaded from GitHub on startup
   )
 
   # -------------------------------------------------------------------------
