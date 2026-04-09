@@ -64,10 +64,26 @@ for service in "${SERVICES[@]}"; do
     continue
   fi
   echo "$LOG_PREFIX Syncing $service..."
+
+  extra_args=()
+  # For Plex, exclude regenerable cache and logs — these are large and not
+  # needed for a restore. Plex rebuilds PhotoTranscoder thumbnails and logs
+  # automatically on startup.
+  if [[ "$service" == "plex/config" ]]; then
+    extra_args+=(
+      --exclude "Cache/PhotoTranscoder/**"
+      --exclude "Cache/Transcode/**"
+      --exclude "Logs/**"
+      --exclude "*.log"
+      --exclude "*.log.*"
+    )
+  fi
+
   rclone sync "$src/" "${R2_REMOTE}:${R2_BUCKET}/${service}/" \
     --transfers=2 \
     --checksum \
-    --log-level INFO
+    --log-level INFO \
+    "${extra_args[@]}"
 done
 
 # --- Restart Plex if it was stopped ---
