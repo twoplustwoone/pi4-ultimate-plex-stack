@@ -103,9 +103,10 @@ for service in "${SERVICES[@]}"; do
   # -------------------------------------------------------------------------
   if [[ "$service" == "plex/config" ]]; then
     extra_args+=(
-      --exclude "Codecs/**"         # Platform binaries auto-downloaded by Plex on startup
-      --exclude "Crash Reports/**"  # Not useful for restore
-      --exclude "Media/**"          # Analysis data: chapter thumbnails, GoP indexes, video thumbnails
+      --exclude "Codecs/**"                    # Platform binaries auto-downloaded by Plex on startup
+      --exclude "Crash Reports/**"             # Not useful for restore
+      --exclude "Media/**"                     # Analysis data: chapter thumbnails, GoP indexes, video thumbnails
+      --exclude "Plug-in Support/Caches/**"    # HTTP caches for agents (fanarttv, imdb, themoviedb, etc.) — rebuilt on startup
     )
   fi
 
