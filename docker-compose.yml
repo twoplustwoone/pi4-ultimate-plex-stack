@@ -132,14 +132,21 @@ services:
     volumes:
       - ${BASE_PATH}/qbittorrent/config:/config
       - ${MEDIA_SHARE}:/share
-    # NOTE: No autoheal label — qBittorrent must fail with Gluetun, not restart
-    # independently into a no-VPN state. The depends_on below handles this.
+    # NOTE: qBittorrent shares gluetun's network namespace (network_mode:
+    # service:gluetun), so it cannot leak traffic if gluetun is down — it has
+    # no network at all. Autoheal is intentionally NOT on qBit because autoheal
+    # only restarts running-but-unhealthy containers; when gluetun is bounced,
+    # qBit goes fully Exited and autoheal can't touch it. Instead we use
+    # `depends_on.restart: true` so Compose restarts qBit whenever it restarts
+    # gluetun. Combined with removing autoheal from gluetun (which self-heals
+    # its VPN tunnel internally), this prevents the cascade we hit 2026-04-09.
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
     depends_on:
       gluetun:
         condition: service_healthy
+        restart: true
     healthcheck:
       test:
         [
@@ -166,8 +173,14 @@ services:
       - OPENVPN_USER=${OPENVPN_USER}
       - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
       - TZ=${TZ}
-    labels:
-      - "autoheal.enable=true"
+    # NOTE: autoheal intentionally removed 2026-04-10. Gluetun has its own
+    # internal VPN healthcheck ("Restart VPN on healthcheck failure: yes")
+    # that re-establishes the tunnel without restarting the container. Layering
+    # docker-level autoheal on top caused a cascade: brief tun0 flaps during
+    # internal reconnection tripped this healthcheck, autoheal hard-restarted
+    # gluetun, and qBittorrent (sharing gluetun's netns) got SIGTERM'd and
+    # stayed Exited. The `retries: 20` below gives 10 minutes of slack so the
+    # docker healthcheck tolerates gluetun's internal reconnect windows.
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -175,7 +188,7 @@ services:
       test: ["CMD-SHELL", "ip link show up | grep -Eq 'tun[0-9]+|wg[0-9]+'"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 20
       start_period: 2m
 
   unpackerr:
