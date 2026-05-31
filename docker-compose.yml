@@ -173,6 +173,10 @@ services:
       - OPENVPN_USER=${OPENVPN_USER}
       - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
       - TZ=${TZ}
+      # PIA port forwarding (added 2026-05-30) — improves seeding/ratio by allowing
+      # inbound peer connections. gluetun writes the assigned port to
+      # /tmp/gluetun/forwarded_port; qBittorrent's listen port is set to match.
+      - VPN_PORT_FORWARDING=on
     # NOTE: autoheal intentionally removed 2026-04-10. Gluetun has its own
     # internal VPN healthcheck ("Restart VPN on healthcheck failure: yes")
     # that re-establishes the tunnel without restarting the container. Layering
@@ -305,7 +309,6 @@ services:
   cross-seed:
     image: ${CROSS_SEED_IMAGE:-ghcr.io/cross-seed/cross-seed:latest}
     container_name: cross-seed
-    profiles: ["advanced"]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -416,6 +419,7 @@ services:
   watchtower:
     image: ${WATCHTOWER_IMAGE:-containrrr/watchtower:latest}
     container_name: watchtower
+    profiles: ["advanced"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
@@ -449,6 +453,7 @@ services:
   autoheal:
     image: ${AUTOHEAL_IMAGE:-willfarrell/autoheal:latest}
     container_name: autoheal
+    profiles: ["advanced"]
     restart: unless-stopped
     pull_policy: if_not_present
     environment:
