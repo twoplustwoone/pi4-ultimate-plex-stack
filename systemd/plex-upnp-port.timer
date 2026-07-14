@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically renew the router UPnP port mapping for Plex
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=plex-upnp-port.service
+
+[Install]
+WantedBy=timers.target

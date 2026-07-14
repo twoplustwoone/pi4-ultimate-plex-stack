@@ -1,0 +1,10 @@
+[Unit]
+Description=Renew the router UPnP port mapping for Plex
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+WorkingDirectory=/home/pi/pi4-ultimate-plex-stack
+ExecStart=/usr/bin/python3 /home/pi/pi4-ultimate-plex-stack/scripts/ensure-plex-upnp-port.py
