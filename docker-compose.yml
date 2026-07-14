@@ -36,6 +36,32 @@ services:
       retries: 5
       start_period: 60s
 
+  jellyfin:
+    image: ${JELLYFIN_IMAGE:-jellyfin/jellyfin:latest}
+    container_name: jellyfin
+    profiles: ["jellyfin"]
+    user: "${PUID}:${PGID}"
+    network_mode: host
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${BASE_PATH}/jellyfin/config:/config
+      - ${BASE_PATH}/jellyfin/cache:/cache
+      - ${MEDIA_SHARE}:/media:ro
+    restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://127.0.0.1:8096/ > /dev/null || wget -q -O- http://127.0.0.1:8096/ > /dev/null",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   radarr:
     image: ${RADARR_IMAGE:-lscr.io/linuxserver/radarr:latest}
     container_name: radarr
