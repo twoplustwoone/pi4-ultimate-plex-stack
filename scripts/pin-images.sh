@@ -31,6 +31,7 @@ image_vars=(
   AUTOHEAL_IMAGE
   NETDATA_IMAGE
   PORTAINER_IMAGE
+  SCRUTINY_IMAGE
 )
 
 set -a

@@ -576,6 +576,48 @@ services:
       retries: 5
       start_period: 30s
 
+  # scrutiny: SMART disk-health monitoring with history + web dashboard at
+  # http://<pi-ip>:8666. Added 2026-07-09 after the WD My Passport 4TB media
+  # drive showed 10,008 reallocated sectors (root cause of the 2026-07-03
+  # D-state I/O stall). Watch Reallocated_Sector_Ct — if it keeps growing,
+  # replace the drive urgently.
+  # NOTE: omnibus image bundles InfluxDB (~150-200MB RAM) — meaningful on the
+  # 2GB Pi, fine after the planned HP ProDesk migration.
+  # If the USB drive shows no SMART data, the collector may need `-d sat`:
+  # create ${BASE_PATH}/scrutiny/config/collector.yaml overriding smartctl args.
+  scrutiny:
+    image: ${SCRUTINY_IMAGE:-ghcr.io/analogj/scrutiny:master-omnibus}
+    container_name: scrutiny
+    profiles: ["advanced"]
+    cap_add:
+      - SYS_RAWIO # required for smartctl to reach SATA/USB-SAT drives
+    devices:
+      - /dev/sda:/dev/sda
+    ports:
+      - 8666:8080 # host 8080 is taken by gluetun/qBittorrent WebUI
+    volumes:
+      - /run/udev:/run/udev:ro
+      - ${BASE_PATH}/scrutiny/config:/opt/scrutiny/config
+      - ${BASE_PATH}/scrutiny/influxdb:/opt/scrutiny/influxdb
+    environment:
+      - TZ=${TZ}
+      # Collect SMART data every 4 hours (default is hourly; the drive spins
+      # up for each poll — no need to hammer a failing disk).
+      - COLLECTOR_CRON_SCHEDULE=0 */4 * * *
+    restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS http://localhost:8080/api/health > /dev/null || wget -q -O- http://localhost:8080/api/health > /dev/null",
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   cloudflared:
     image: ${CLOUDFLARE_IMAGE:-cloudflare/cloudflared:latest}
     container_name: cloudflared
