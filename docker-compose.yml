@@ -565,16 +565,12 @@ services:
     ports:
       - "9000:9000"
     logging: *default-logging
+    # portainer/portainer-ce is built FROM scratch — no shell, no curl, no wget.
+    # A CMD-SHELL healthcheck can't even execute in this image, so it always
+    # reports unhealthy regardless of whether the app is actually up. Disabled
+    # rather than chasing a curl/wget-capable tag.
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -sS http://localhost:9000/ > /dev/null || wget -q -O- http://localhost:9000/ > /dev/null",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      disable: true
 
   # scrutiny: SMART disk-health monitoring with history + web dashboard at
   # http://<pi-ip>:8666. Added 2026-07-09 after the WD My Passport 4TB media
