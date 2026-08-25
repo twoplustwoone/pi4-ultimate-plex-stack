@@ -18,7 +18,7 @@ directories, and mounts the media library read-only.
 Run these on the Pi before starting Jellyfin:
 
 ```bash
-cd /home/pi/pi4-ultimate-plex-stack
+cd /home/twoplustwoone/pi4-ultimate-plex-stack
 
 uname -m
 awk -F= '/^(BASE_PATH|MEDIA_SHARE|PUID|PGID|SERVER_IP)=/{print}' .env
@@ -36,7 +36,7 @@ recovery config path is `BASE_PATH=/home/pi/docker-configs`; keep
 ## Start Jellyfin
 
 ```bash
-cd /home/pi/pi4-ultimate-plex-stack
+cd /home/twoplustwoone/pi4-ultimate-plex-stack
 set -a
 . ./.env
 set +a
@@ -49,7 +49,7 @@ docker inspect jellyfin --format '{{range .Mounts}}{{println .Destination .RW}}{
 ```
 
 Confirm the `/media` mount prints `false` for read-only. Open
-`http://192.168.1.188:8096` from the LAN and complete the setup wizard.
+`http://192.168.1.246:8096` from the LAN and complete the setup wizard.
 
 ## Jellyfin Setup
 
@@ -97,7 +97,7 @@ test target.
 ## Rollback
 
 ```bash
-cd /home/pi/pi4-ultimate-plex-stack
+cd /home/twoplustwoone/pi4-ultimate-plex-stack
 docker compose --profile jellyfin stop jellyfin
 docker compose --profile jellyfin rm -f jellyfin
 ```
