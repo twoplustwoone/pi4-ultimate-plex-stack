@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up Docker config volumes to Cloudflare R2
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=twoplustwoone
+WorkingDirectory=/home/twoplustwoone/pi4-ultimate-plex-stack
+ExecStart=/home/twoplustwoone/pi4-ultimate-plex-stack/scripts/backup-configs.sh

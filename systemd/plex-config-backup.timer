@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly backup of Docker config volumes to Cloudflare R2
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+# Run after downtime if the scheduled time was missed, so a powered-off
+# night does not silently skip a backup.
+Persistent=true
+Unit=plex-config-backup.service
+
+[Install]
+WantedBy=timers.target

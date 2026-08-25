@@ -133,7 +133,11 @@ BACKUP_DEST="user@nas:/backups/pi4-plex" ./scripts/backup-configs.sh
 # Add to crontab (runs daily at 3am)
 crontab -e
 # Add this line:
-# 0 3 * * * BACKUP_DEST=user@nas:/backups/pi4-plex /home/pi/pi4-ultimate-plex-stack/scripts/backup-configs.sh >> /var/log/plex-backup.log 2>&1
+# 0 3 * * * BACKUP_DEST=user@nas:/backups/pi4-plex /home/twoplustwoone/pi4-ultimate-plex-stack/scripts/backup-configs.sh >> /home/twoplustwoone/logs/plex-backup.log 2>&1
+# NOTE: the log path must be writable by the invoking user. Redirecting to
+# /var/log kills the job before the script runs (the shell cannot open the
+# file), and it fails silently every night. Prefer the systemd timer in
+# systemd/plex-config-backup.{service,timer}.
 ```
 
 For SSH key-based auth (required for unattended remote backups):

@@ -9,8 +9,15 @@
 # Usage:
 #   ./scripts/backup-configs.sh
 #
-# Scheduling (add to crontab with: crontab -e):
-#   0 3 * * * /home/pi/pi4-ultimate-plex-stack/scripts/backup-configs.sh >> /var/log/plex-backup.log 2>&1
+# Scheduling (preferred) — systemd timer, see systemd/plex-config-backup.{service,timer}:
+#   sudo cp systemd/plex-config-backup.* /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now plex-config-backup.timer
+#   Output goes to the journal: journalctl -u plex-config-backup.service
+#
+# Scheduling (fallback) — user crontab. The log path MUST be writable by the
+# invoking user; redirecting to /var/log silently kills the job before this
+# script ever runs, because the shell cannot open the file:
+#   0 3 * * * /home/twoplustwoone/pi4-ultimate-plex-stack/scripts/backup-configs.sh >> /home/twoplustwoone/logs/plex-backup.log 2>&1
 
 set -euo pipefail
 
