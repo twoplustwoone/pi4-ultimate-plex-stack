@@ -1,7 +1,21 @@
-# Pi4 Plex Stack — Full Context for Hardware Discussion
+# Pi 4 → ProDesk Migration — Historical Record (COMPLETED)
 
-_Compiled from maintenance sessions through 2026-07-14. Use this to discuss
-upgrade and migration options._
+> **Status: this migration has happened.** The stack now runs on `yggdrasil`
+> (HP ProDesk 600 G6 Desktop Mini, i5-10500T, 14 GiB RAM, Ubuntu x86_64, root
+> on NVMe) at `192.168.1.246`, SSH user `twoplustwoone`.
+>
+> **Everything below describes the OLD Raspberry Pi 4 host and the reasoning
+> that led to the move. It is kept as a record of why decisions were made — it
+> is not a description of current state.** Do not use its addresses, paths, or
+> hardware limits for operational work.
+>
+> One recommendation in this document was **not** followed: the failing WD My
+> Passport media drive was carried over to the new server rather than replaced.
+> It is still the only media disk and has continued to degrade (reallocated
+> sectors 10,008 on 2026-07-09 → 12,880 on 2026-08-25). Replacing it is the
+> top outstanding task. See `.local/pi-issue-history.md` for the running log.
+
+_Compiled from maintenance sessions through 2026-07-14._
 
 ## The Setup
 

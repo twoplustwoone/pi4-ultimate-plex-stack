@@ -1,8 +1,22 @@
-# Pi4 Plex Stack — Ops & Reliability Guide
+# Plex Stack — Ops & Reliability Guide
 
 A practical, opinionated guide for making this stack more reliable, observable,
 and easier to operate. Written against the actual `docker-compose.yml` in this
 repo, not a generic template.
+
+> **Hardware note (updated 2026-08-25).** This stack no longer runs on a
+> Raspberry Pi. It runs on **`yggdrasil`** — an HP ProDesk 600 G6 Desktop Mini:
+> Intel i5-10500T (12 threads), 14 GiB RAM, Ubuntu x86_64, root on NVMe.
+> Reach it at **`192.168.1.246`**, SSH user **`twoplustwoone`** (not `pi`).
+> Container configs live at `/home/pi/docker-configs` — a legacy path that is
+> real and in use on this host; do not "fix" it without relocating the data.
+> Media is a USB disk at `/mnt/library`.
+>
+> Sections below that analyse Pi 4 CPU, GPU, SD-card or RAM limits — notably
+> §7 (quality profiles) and §8 (hardware/upgrade path) — are retained as
+> **historical context** for why the stack is shaped the way it is. They no
+> longer describe current hardware. The transcoding and RAM ceilings they
+> describe do not apply to this machine.
 
 ---
 
@@ -14,8 +28,8 @@ repo, not a generic template.
 4. [Watchtower: the hidden risk](#4-watchtower-risk)
 5. [Security: what to expose and what not to](#5-cloudflare-access)
 6. [Backup and recovery strategy](#6-backup-and-recovery)
-7. [Radarr / Sonarr quality profiles for Pi](#7-quality-profiles)
-8. [Hardware assessment and upgrade path](#8-hardware)
+7. [Radarr / Sonarr quality profiles for Pi](#7-quality-profiles) _(historical — Pi-era)_
+8. [Hardware assessment and upgrade path](#8-hardware) _(historical — Pi-era)_
 9. [Start here: priority checklist](#9-start-here-checklist)
 
 ---
