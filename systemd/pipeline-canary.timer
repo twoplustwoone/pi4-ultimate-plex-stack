@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodic Plex request-pipeline health check
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=6h
+Persistent=true
+Unit=pipeline-canary.service
+
+[Install]
+WantedBy=timers.target
