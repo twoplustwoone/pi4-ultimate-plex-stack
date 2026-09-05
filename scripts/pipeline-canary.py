@@ -19,6 +19,14 @@ STUCK_QUEUE_HRS = 24   # sat in the download queue this long
 NO_GRAB_DAYS   = 21    # nothing successfully grabbed at all
 MIN_FREE_GB    = 250
 
+# Dead-man switch: an Uptime Kuma push monitor, pinged on EVERY completed run
+# whether healthy or not. It proves the canary itself is alive. Kuma raises the
+# alarm when the heartbeat stops - the one failure this script cannot report
+# about itself.
+PUSH_URL = "http://127.0.0.1:3001/api/push/16EK9URVJDqa7NhX"
+SUMMARY_STATE = "/home/twoplustwoone/.canary-last-summary"
+SUMMARY_EVERY_DAYS = 7
+
 def sh(*a): return subprocess.check_output(a).decode().strip()
 def arr_key(svc):
     return sh("docker","exec",svc,"sed","-n",
@@ -95,16 +103,18 @@ try:
 except Exception:
     pass
 
-if not findings:
-    print("pipeline OK - nothing to report")
-    sys.exit(0)
+def heartbeat(msg):
+    """Tell Kuma the canary ran. A failure here must never mask the real result."""
+    if REPORT_ONLY:
+        return
+    try:
+        urllib.request.urlopen(
+            PUSH_URL + "?status=up&msg=" + urllib.parse.quote(msg[:60]), timeout=15).read()
+        print("heartbeat sent")
+    except Exception as e:
+        print("heartbeat FAILED: %s" % type(e).__name__)
 
-msg = "**Plex pipeline check failed**\n" + "\n".join("- " + f for f in findings[:15])
-if len(findings) > 15:
-    msg += "\n- ...and %d more" % (len(findings) - 15)
-print(msg)
-
-if not REPORT_ONLY:
+def discord(msg):
     subprocess.run(["docker","cp","uptime-kuma:/app/data/kuma.db","/tmp/kuma_c.db"], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     hook = json.loads(sqlite3.connect("/tmp/kuma_c.db").execute(
@@ -113,4 +123,40 @@ if not REPORT_ONLY:
     req = urllib.request.Request(hook, data=json.dumps({"content": msg[:1900]}).encode(),
         headers={"Content-Type":"application/json","User-Agent":"pipeline-canary"})
     with urllib.request.urlopen(req, timeout=20) as r:
-        print("\nposted to Discord: HTTP", r.status)
+        return r.status
+
+def maybe_weekly_summary(ok):
+    """Periodic proof of life. Covers BOTH this script and Kuma failing at once -
+    a human notices the weekly message stopped arriving."""
+    if REPORT_ONLY:
+        return
+    import os, time
+    try:
+        last = os.path.getmtime(SUMMARY_STATE)
+    except OSError:
+        last = 0
+    if (time.time() - last) < SUMMARY_EVERY_DAYS * 86400:
+        return
+    try:
+        discord("Weekly check-in: pipeline canary is running. " +
+                ("No issues found." if ok else "Issues reported separately."))
+        open(SUMMARY_STATE, "w").write(str(time.time()))
+        print("weekly summary sent")
+    except Exception as e:
+        print("weekly summary failed: %s" % type(e).__name__)
+
+if not findings:
+    print("pipeline OK - nothing to report")
+    heartbeat("OK")
+    maybe_weekly_summary(True)
+    sys.exit(0)
+
+msg = "**Plex pipeline check failed**\n" + "\n".join("- " + f for f in findings[:15])
+if len(findings) > 15:
+    msg += "\n- ...and %d more" % (len(findings) - 15)
+print(msg)
+
+if not REPORT_ONLY:
+    print("\nposted to Discord: HTTP", discord(msg))
+    heartbeat("%d issue(s)" % len(findings))
+    maybe_weekly_summary(False)
