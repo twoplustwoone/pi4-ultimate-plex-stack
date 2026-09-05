@@ -61,7 +61,27 @@ echo "$LOG_PREFIX Starting backup to ${R2_REMOTE}:${R2_BUCKET}"
 STOP_FOR_BACKUP=(plex uptime-kuma)
 declare -A WAS_RUNNING
 
+# Never interrupt someone watching. A missed clean snapshot costs us one night;
+# stopping Plex mid-stream is a user-visible outage. If sessions are active we
+# skip the stop and back the config up live -- slightly less consistent, but the
+# next idle run gets a clean one.
+plex_has_active_sessions() {
+  local prefs tok n
+  prefs="/config/Library/Application Support/Plex Media Server/Preferences.xml"
+  tok=$(docker exec plex sh -c "cat \"$prefs\"" 2>/dev/null \
+        | tr ' ' '\n' | sed -n 's/PlexOnlineToken="\([^"]*\)"/\1/p')
+  [[ -z "$tok" ]] && return 1
+  n=$(curl -s -m 10 "http://127.0.0.1:32400/status/sessions?X-Plex-Token=$tok" 2>/dev/null \
+      | grep -oE 'size="[0-9]+"' | head -1 | grep -oE '[0-9]+')
+  [[ -n "$n" && "$n" -gt 0 ]]
+}
+
 for container in "${STOP_FOR_BACKUP[@]}"; do
+  if [[ "$container" == "plex" ]] && plex_has_active_sessions; then
+    echo "$LOG_PREFIX Plex has active playback - backing up live, not stopping it."
+    WAS_RUNNING[$container]=false
+    continue
+  fi
   if docker inspect --format '{{.State.Running}}' "$container" 2>/dev/null | grep -q true; then
     WAS_RUNNING[$container]=true
     echo "$LOG_PREFIX Stopping $container for clean snapshot..."

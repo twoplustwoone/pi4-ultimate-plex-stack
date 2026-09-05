@@ -2,7 +2,10 @@
 Description=Nightly backup of Docker config volumes to Cloudflare R2
 
 [Timer]
-OnCalendar=*-*-* 03:00:00
+# The host clock is UTC. Naming the zone explicitly keeps this at 03:30 *local*
+# and follows DST; a bare "03:00:00" ran at 11pm local and stopped Plex
+# mid-playback.
+OnCalendar=*-*-* 03:30:00 America/New_York
 # Run after downtime if the scheduled time was missed, so a powered-off
 # night does not silently skip a backup.
 Persistent=true
