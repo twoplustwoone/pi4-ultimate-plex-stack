@@ -28,13 +28,44 @@ SUMMARY_STATE = "/home/twoplustwoone/.canary-last-summary"
 SUMMARY_EVERY_DAYS = 7
 
 def sh(*a): return subprocess.check_output(a).decode().strip()
+_arr_key_cache = {}
 def arr_key(svc):
-    return sh("docker","exec",svc,"sed","-n",
-              r"s#.*<ApiKey>\(.*\)</ApiKey>.*#\1#p","/config/config.xml")
+    if svc not in _arr_key_cache:
+        _arr_key_cache[svc] = sh("docker","exec",svc,"sed","-n",
+                  r"s#.*<ApiKey>\(.*\)</ApiKey>.*#\1#p","/config/config.xml")
+    return _arr_key_cache[svc]
 def get(url, key, hdr="X-Api-Key"):
     r = urllib.request.Request(url, headers={hdr: key})
     with urllib.request.urlopen(r, timeout=30) as resp:
         return json.load(resp)
+
+def radarr_release_pending(movie_id):
+    """True if Radarr shows this movie as not yet released (nothing to deliver)."""
+    try:
+        m = get("http://127.0.0.1:7878/api/v3/movie/%d" % movie_id, arr_key("radarr"))
+        return m.get("status") != "released"
+    except Exception:
+        return False  # fail open: never suppress a real finding on a lookup error
+
+def sonarr_season_unaired(series_id, season_numbers):
+    """True if every requested season hasn't aired yet (nothing to deliver)."""
+    try:
+        s = get("http://127.0.0.1:8989/api/v3/series/%d" % series_id, arr_key("sonarr"))
+        if s.get("status") == "upcoming":
+            return True
+        seasons = {se.get("seasonNumber"): se for se in s.get("seasons", [])}
+        for num in season_numbers:
+            se = seasons.get(num)
+            if not se:
+                continue
+            stats = se.get("statistics", {}) or {}
+            if stats.get("nextAiring") and stats.get("episodeFileCount", 0) == 0:
+                continue  # this season still pending airing
+            return False  # at least one requested season is airing/aired, not just pending
+        return True
+    except Exception:
+        return False  # fail open
+
 def age_days(ts):
     if not ts: return None
     ts = ts.replace("Z", "+00:00")
@@ -88,6 +119,14 @@ try:
         if r.get("status") == 2 and media.get("status") in (2, 3):   # approved, still pending/processing
             d = age_days(r.get("createdAt"))
             if d and d > STUCK_REQ_DAYS:
+                media_type = r.get("type")
+                ext_id = media.get("externalServiceId")
+                if media_type == "movie" and ext_id and radarr_release_pending(ext_id):
+                    continue
+                if media_type == "tv" and ext_id:
+                    season_nums = [s.get("seasonNumber") for s in r.get("seasons", [])]
+                    if sonarr_season_unaired(ext_id, season_nums):
+                        continue
                 who = (r.get("requestedBy") or {}).get("displayName", "?")
                 findings.append("overseerr: request #%s (%s, by %s) approved but not available after %.0f days"
                                 % (r.get("id"), r.get("type"), who, d))
