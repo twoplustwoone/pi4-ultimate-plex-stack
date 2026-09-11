@@ -21,6 +21,13 @@
 
 set -euo pipefail
 
+# The system rclone (/usr/bin/rclone, root-owned) predates Cloudflare R2 and
+# spuriously logs "Failed to copy: NotImplemented" on every single upload even
+# though the upload itself succeeds -- it self-heals on retry, but floods the
+# log. A newer rclone in the user's own bin dir fixes this with no sudo needed;
+# prefer it here without touching the system binary other tools may rely on.
+export PATH="$HOME/.local/bin:$PATH"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
