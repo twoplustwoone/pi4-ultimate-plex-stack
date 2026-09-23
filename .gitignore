@@ -1,3 +1,8 @@
 .env
 .local/
 .env.bak*
+*.bak-*
+
+# cross-seed runtime state; only config.js is source
+cross-seed/config/*
+!cross-seed/config/config.js
