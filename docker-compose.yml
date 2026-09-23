@@ -587,8 +587,14 @@ services:
     profiles: ["advanced"]
     cap_add:
       - SYS_RAWIO # required for smartctl to reach SATA/USB-SAT drives
+    # Pinned by serial: sdX letters follow USB enumeration order, and after the
+    # disk swap /dev/sda became the retired disk while the library went
+    # unmonitored.
     devices:
-      - /dev/sda:/dev/sda
+      # Library disk (WD Elements 8TB, /mnt/library)
+      - /dev/disk/by-id/ata-WDC_WD80EDAZ-11CEWB0_WD-1F0AK8EU:/dev/sdb
+      # Retired WD Passport 4TB, kept unmounted as a cold fallback
+      - /dev/disk/by-id/ata-WDC_WD40NDZW-11BCSS1_WD-WXC2DB1447TZ:/dev/sda
     ports:
       - 8666:8080 # host 8080 is taken by gluetun/qBittorrent WebUI
     volumes:
@@ -597,8 +603,8 @@ services:
       - ${BASE_PATH}/scrutiny/influxdb:/opt/scrutiny/influxdb
     environment:
       - TZ=${TZ}
-      # Collect SMART data every 4 hours (default is hourly; the drive spins
-      # up for each poll — no need to hammer a failing disk).
+      # Collect SMART data every 4 hours (default is hourly; the drives spin
+      # up for each poll).
       - COLLECTOR_CRON_SCHEDULE=0 */4 * * *
     restart: unless-stopped
     pull_policy: if_not_present
