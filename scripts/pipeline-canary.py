@@ -5,12 +5,13 @@ pipeline-canary.py — detect a request pipeline that is silently doing nothing.
 Liveness checks cannot catch "every service is green but no media is arriving",
 which is exactly how a stale download-client address went unnoticed for seven
 weeks. This inspects the pipeline end to end and reports only when something is
-actually wrong. Silent when healthy.
+actually wrong. Silent when healthy. The same applies to torrent cleanup, whose
+own heartbeat stays green even when it has stopped deleting anything.
 
   --report   print findings and exit (no Discord message)
   --apply    post to Discord if there are findings
 """
-import json, sqlite3, subprocess, sys, urllib.request, urllib.parse
+import http.cookiejar, json, sqlite3, subprocess, sys, time, urllib.request, urllib.parse
 from datetime import datetime, timezone
 
 REPORT_ONLY   = "--apply" not in sys.argv
@@ -18,6 +19,15 @@ STUCK_REQ_DAYS = 3     # approved but still not available
 STUCK_QUEUE_HRS = 24   # sat in the download queue this long
 NO_GRAB_DAYS   = 21    # nothing successfully grabbed at all
 MIN_FREE_GB    = 250
+
+# Torrent cleanup. These mirror qbit_manage/config/config.yml; keep them in step.
+QBIT = "http://127.0.0.1:8080"
+ENV_FILE = "/home/twoplustwoone/pi4-ultimate-plex-stack/.env"
+PRIVATE_RATIO, PRIVATE_DAYS, PRIVATE_MIN_DAYS = 1.0, 15, 3
+PUBLIC_DAYS = 3
+HNR_DAYS = 14          # IPTorrents: 1:1 or 14 days, per torrent
+CLEANUP_GRACE_DAYS = 1 # qbit_manage runs hourly; a day late means it has stalled
+STOPPED_STATE = "/home/twoplustwoone/.canary-stopped-released.json"
 
 # Dead-man switch: an Uptime Kuma push monitor, pinged on EVERY completed run
 # whether healthy or not. It proves the canary itself is alive. Kuma raises the
@@ -141,6 +151,69 @@ try:
         findings.append("library free space low: %.0f GB" % free_gb)
 except Exception:
     pass
+
+# 6-8. torrents: seeding owed to IPTorrents is being earned, cleanup keeps pace,
+# and the qBittorrent settings both depend on are still in place.
+def qbit_opener():
+    env = dict(l.strip().split("=", 1) for l in open(ENV_FILE) if "=" in l and not l.startswith("#"))
+    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    form = urllib.parse.urlencode({"username": env["QBITTORRENT_USER"].strip('"'),
+                                   "password": env["QBITTORRENT_PASS"].strip('"')}).encode()
+    req = urllib.request.Request(QBIT + "/api/v2/auth/login", data=form, headers={"Referer": QBIT})
+    if op.open(req, timeout=30).read() != b"Ok.":
+        raise RuntimeError("qBittorrent login refused")
+    return op
+
+def cleanup_due(t, slack_days=0):
+    """qbit_manage's rule for a released torrent, optionally `slack_days` past it."""
+    days = t["seeding_time"] / 86400 - slack_days
+    if t.get("private"):
+        return days >= PRIVATE_MIN_DAYS and (t["ratio"] >= PRIVATE_RATIO or days >= PRIVATE_DAYS)
+    return days >= PUBLIC_DAYS
+
+try:
+    op = qbit_opener()
+    qget = lambda path: json.load(op.open(QBIT + path, timeout=30))
+    # With qBittorrent < 5.2 its global action overrides qbit_manage's "Stop":
+    # "remove with files" deletes outside the recycle bin and min-seed check.
+    act = qget("/api/v2/app/preferences").get("max_ratio_act")
+    if act != 0:
+        findings.append("qBittorrent share-limit action is %s, not 0 (Stop): cleanup bypasses the recycle bin" % act)
+    torrents = qget("/api/v2/torrents/info")
+    tags = {t["hash"]: {x.strip() for x in t["tags"].split(",")} for t in torrents}
+    stopped = {"stoppedUP", "pausedUP"}
+
+    queued = [t for t in torrents if t["state"] == "queuedUP"]
+    if queued:
+        findings.append("qBittorrent: %d torrents queued instead of seeding (queue limits back?)" % len(queued))
+    # Queued, stopped or errored torrents don't announce, so owed seeding time stalls.
+    owing = [t for t in torrents if t.get("private") and t["progress"] == 1
+             and t["ratio"] < 1 and t["seeding_time"] < HNR_DAYS * 86400
+             and t["state"] not in ("uploading", "stalledUP", "forcedUP", "queuedUP")]
+    if owing:
+        findings.append("%d private torrents still owe seeding but aren't seeding (e.g. %s: %s)"
+                        % (len(owing), owing[0]["name"][:40], owing[0]["state"]))
+
+    # A released torrent that qBittorrent stopped at its limit should be gone by
+    # qbit_manage's next hourly run. Stopped torrents stop accruing seeding time,
+    # so track when each was first seen stopped.
+    now = time.time()
+    try:
+        first_seen = json.load(open(STOPPED_STATE))
+    except (OSError, ValueError):
+        first_seen = {}
+    first_seen = {t["hash"]: first_seen.get(t["hash"], now) for t in torrents
+                  if "released" in tags[t["hash"]] and t["state"] in stopped}
+    if not REPORT_ONLY:
+        json.dump(first_seen, open(STOPPED_STATE, "w"))
+    overdue = [t for t in torrents if "released" in tags[t["hash"]] and (
+        now - first_seen.get(t["hash"], now) > CLEANUP_GRACE_DAYS * 86400
+        or (t["state"] not in stopped and cleanup_due(t, CLEANUP_GRACE_DAYS)))]
+    if overdue:
+        findings.append("torrent cleanup stalled: %d released torrents past their seeding rule (e.g. %s)"
+                        % (len(overdue), overdue[0]["name"][:50]))
+except Exception as e:
+    findings.append("torrent checks failed: %s" % type(e).__name__)
 
 def heartbeat(msg):
     """Tell Kuma the canary ran. A failure here must never mask the real result."""
