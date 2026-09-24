@@ -88,7 +88,7 @@ share_limits:
     max_ratio: 1.0
     max_seeding_time: 15d
     min_seeding_time: 3d
-    cleanup: false
+    cleanup: true
     share_limit_action: Stop
   # Public trackers have no seeding obligation; 3 days is only an import window.
   unlinked_public:
@@ -99,7 +99,7 @@ share_limits:
     exclude_any_tags:
     - private
     max_seeding_time: 3d
-    cleanup: false
+    cleanup: true
     share_limit_action: Stop
   # Still in the library, or still wanted by an arr: seed indefinitely.
   in_library:
