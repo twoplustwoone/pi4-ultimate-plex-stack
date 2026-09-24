@@ -68,6 +68,12 @@ in `.env`.
 Torrent cleanup is qbit_manage (`qbit_manage/config/config.yml`): a torrent is
 removed only once its library copy is gone *and* its tracker's seeding rule is
 met. qBittorrent's `seeding_time` counts only active seeding, not time queued.
+qBittorrent below 5.2 ignores qbit_manage's per-torrent `share_limit_action`
+and applies its **global** action instead, so that global action must stay
+**Stop** (`max_ratio_act=0`). Set to "remove with files", qBittorrent deletes a
+torrent outright as soon as its limits are set, skipping qbit_manage's recycle
+bin and its minimum-seeding-time check. Deleting a torrent also leaves behind
+anything unpackerr extracted beside it (e.g. a `.iso` from a RAR'd disc release).
 
 Never print tokens, API keys or passwords. Use them inside a script or shell
 variable. **Beware that redaction can disguise absence** — an empty value passed
