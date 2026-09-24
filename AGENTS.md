@@ -58,9 +58,16 @@ key=$(docker exec radarr sed -n 's#.*<ApiKey>\(.*\)</ApiKey>.*#\1#p' /config/con
 curl -s -H "X-Api-Key: $key" http://127.0.0.1:7878/api/v3/health
 ```
 
-Ports: radarr 7878, sonarr 8989, prowlarr 9696 (`/api/v1`), overseerr 5055,
+Ports: radarr 7878, sonarr 8989, prowlarr 9696 (`/api/v1`), seerr 5055,
 qBittorrent via gluetun 8080, Plex 32400, Tautulli 8181, Uptime Kuma 3001.
-Overseerr's key is in `/app/config/settings.json` under `main.apiKey`.
+Seerr (Overseerr's successor; the container is `seerr`, still reachable as
+`overseerr` on the Docker network) keeps its key in `/app/config/settings.json`
+under `main.apiKey`. qBittorrent's credentials are `QBITTORRENT_USER`/`_PASS`
+in `.env`.
+
+Torrent cleanup is qbit_manage (`qbit_manage/config/config.yml`): a torrent is
+removed only once its library copy is gone *and* its tracker's seeding rule is
+met. qBittorrent's `seeding_time` counts only active seeding, not time queued.
 
 Never print tokens, API keys or passwords. Use them inside a script or shell
 variable. **Beware that redaction can disguise absence** — an empty value passed

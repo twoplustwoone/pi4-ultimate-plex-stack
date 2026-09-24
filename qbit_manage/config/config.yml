@@ -1,0 +1,129 @@
+# qbit_manage: remove torrents whose library copy has been deleted.
+#
+# A torrent still hardlinked into /share/movies or /share/tv costs no extra
+# disk, so it seeds forever. Once the library copy is deleted (Seerr, Plex,
+# Radarr/Sonarr), the torrent's files have no link outside /share/downloads and
+# get tagged noHL. noHL alone isn't enough: a download that never imported is
+# also unlinked, and there the torrent is the only copy. So cleanup also needs
+# the `released` tag, which scripts/torrent-release-guard.py applies only once
+# Radarr/Sonarr no longer want the title. Then the tracker's seeding rule applies.
+#
+# Secrets come from the environment (see docker-compose.yml); this file is public.
+
+commands:
+  dry_run: false
+  recheck: false
+  cat_update: false
+  tag_update: true
+  rem_unregistered: false
+  tag_tracker_error: false
+  rem_orphaned: false
+  tag_nohardlinks: true
+  share_limits: true
+  skip_qb_version_check: false
+  skip_cleanup: false
+
+qbt:
+  host: gluetun:8080
+  user: !ENV QBIT_USER
+  pass: !ENV QBIT_PASS
+
+settings:
+  force_auto_tmm: false
+  tracker_error_tag: issue
+  nohardlinks_tag: noHL
+  stalled_tag: stalledDL
+  # qBittorrent's own flag, so a private tracker added later is covered
+  # without listing it here.
+  private_tag: private
+  share_limits_tag: ~share_limit
+  share_limits_min_seeding_time_tag: MinSeedTimeNotReached
+  share_limits_min_num_seeds_tag: MinSeedsNotMet
+  share_limits_last_active_tag: LastActiveLimitNotReached
+  cat_filter_completed: true
+  share_limits_filter_completed: true
+  tag_nohardlinks_filter_completed: true
+  rem_unregistered_filter_completed: false
+  cat_update_all: false
+  disable_qbt_default_share_limits: true
+  tag_stalled_torrents: false
+
+  force_auto_tmm_ignore_tags: []
+  rem_unregistered_ignore_list: []
+  rem_unregistered_grace_minutes: 10
+  rem_unregistered_max_torrents: 10
+directory:
+  root_dir: /share/downloads/
+  recycle_bin: /share/downloads/.RecycleBin
+  torrents_dir: /torrents
+
+cat:
+  radarr: /share/downloads
+  sonarr: /share/downloads
+
+tracker:
+  stackoverflow.tech|empirehost.me|bgp.technology:
+    tag: IPT
+  other:
+    tag: public
+
+nohardlinks:
+  # cross-seed links its copies inside /share/downloads. Ignoring links within
+  # root_dir means only a link into the library counts as "still in use".
+  radarr:
+    ignore_root_dir: true
+  sonarr:
+    ignore_root_dir: true
+
+share_limits:
+  # Private trackers. IPTorrents' hit-and-run rule is 1:1 ratio OR 14 days
+  # seeding; 15 days leaves a margin. The 3-day minimum keeps a torrent that
+  # hits 1:1 early from being removed before Radarr/Sonarr import it.
+  unlinked_private:
+    priority: 1
+    include_all_tags:
+    - noHL
+    - private
+    - released
+    max_ratio: 1.0
+    max_seeding_time: 15d
+    min_seeding_time: 3d
+    cleanup: false
+    share_limit_action: Stop
+  # Public trackers have no seeding obligation; 3 days is only an import window.
+  unlinked_public:
+    priority: 2
+    include_all_tags:
+    - noHL
+    - released
+    exclude_any_tags:
+    - private
+    max_seeding_time: 3d
+    cleanup: false
+    share_limit_action: Stop
+  # Still in the library, or still wanted by an arr: seed indefinitely.
+  in_library:
+    priority: 999
+    max_ratio: -1
+    max_seeding_time: -1
+    cleanup: false
+
+recyclebin:
+  enabled: true
+  empty_after_x_days: 3
+  save_torrents: true
+  split_by_category: false
+
+webhooks:
+  # Liveness is reported by torrent-release-guard, which checks this log's age.
+  run_end:
+  error:
+  run_start:
+  function:
+    tag_tracker_error:
+    share_limits:
+orphaned:
+  empty_after_x_days:
+  exclude_patterns:
+  max_orphaned_files_to_delete: 50
+  min_file_age_minutes: 0

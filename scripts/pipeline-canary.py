@@ -112,7 +112,7 @@ for svc, port in (("radarr",7878), ("sonarr",8989)):
 
 # 4. Overseerr requests approved but never delivered -- the user-visible failure
 try:
-    okey = json.loads(sh("docker","exec","overseerr","cat","/app/config/settings.json"))["main"]["apiKey"]
+    okey = json.loads(sh("docker","exec","seerr","cat","/app/config/settings.json"))["main"]["apiKey"]
     reqs = get("http://127.0.0.1:5055/api/v1/request?take=100&sort=added", okey)
     for r in reqs.get("results", []):
         media = r.get("media") or {}

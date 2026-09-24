@@ -118,18 +118,27 @@ services:
       retries: 5
       start_period: 30s
 
-  overseerr:
-    image: ${OVERSEERR_IMAGE:-ghcr.io/sct/overseerr:latest}
-    container_name: overseerr
+  # Seerr is Overseerr's successor (the projects merged in 2026). It runs as the
+  # image's `node` user (UID 1000), ignores PUID/PGID, and needs `init: true`.
+  # Its config is a copy of Overseerr's, migrated in place on first start, so
+  # ${BASE_PATH}/overseerr/config stays untouched as the rollback.
+  # The `overseerr` alias keeps http://overseerr:5055 resolving for the
+  # Cloudflare tunnel and Uptime Kuma, which both address it by that name.
+  seerr:
+    image: ${SEERR_IMAGE:-ghcr.io/seerr-team/seerr:latest}
+    container_name: seerr
+    init: true
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
       - TZ=${TZ}
+      - PORT=5055
     volumes:
-      - ${BASE_PATH}/overseerr/config:/app/config
-      - ${MEDIA_SHARE}:/share
+      - ${BASE_PATH}/seerr/config:/app/config
     ports:
       - 5055:5055
+    networks:
+      default:
+        aliases:
+          - overseerr
     labels:
       - "autoheal.enable=true"
     restart: unless-stopped
@@ -139,7 +148,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -sS http://localhost:5055/ > /dev/null || wget -q -O- http://localhost:5055/ > /dev/null",
+          "wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/settings/public || exit 1",
         ]
       interval: 30s
       timeout: 10s
@@ -371,6 +380,53 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  # Removes torrents whose library copy is gone, once the tracker's seeding
+  # rule is met. Rules live in qbit_manage/config/config.yml.
+  qbit_manage:
+    image: ${QBIT_MANAGE_IMAGE:-ghcr.io/stuffanthings/qbit_manage:latest}
+    container_name: qbit_manage
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - QBT_RUN=false
+      - QBT_SCHEDULE=60
+      - QBT_CONFIG_DIR=/config
+      - QBT_LOGFILE=qbit_manage.log
+      - QBIT_USER=${QBITTORRENT_USER}
+      - QBIT_PASS=${QBITTORRENT_PASS}
+    volumes:
+      - ./qbit_manage/config:/config
+      - ${MEDIA_SHARE}:/share
+      - ${BASE_PATH}/qbittorrent/config/qBittorrent/BT_backup:/torrents:ro
+    restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
+    depends_on:
+      qbittorrent:
+        condition: service_healthy
+
+  # Tags unlinked torrents `released` once Radarr/Sonarr no longer want the
+  # title; qbit_manage cleans only those. Fails closed, and heartbeats Uptime
+  # Kuma for itself and qbit_manage. See scripts/torrent-release-guard.py.
+  torrent-release-guard:
+    image: ${PYTHON_IMAGE:-python:3.13-alpine}
+    container_name: torrent-release-guard
+    command: ["python3", "-u", "/scripts/torrent-release-guard.py"]
+    environment:
+      - TZ=${TZ}
+      - QBIT_USER=${QBITTORRENT_USER}
+      - QBIT_PASS=${QBITTORRENT_PASS}
+      - RADARR_KEY=${RADARR_KEY}
+      - SONARR_KEY=${SONARR_KEY}
+      - HEARTBEAT_URL=${TORRENT_GUARD_HEARTBEAT_URL}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./qbit_manage/config/logs:/qbm-logs:ro
+    restart: unless-stopped
+    pull_policy: if_not_present
+    logging: *default-logging
 
   autobrr:
     container_name: autobrr

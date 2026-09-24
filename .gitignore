@@ -6,3 +6,7 @@
 # cross-seed runtime state; only config.js is source
 cross-seed/config/*
 !cross-seed/config/config.js
+
+# qbit_manage runtime state; only config.yml is source
+qbit_manage/config/*
+!qbit_manage/config/config.yml

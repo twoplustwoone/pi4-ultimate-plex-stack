@@ -49,7 +49,7 @@ SERVICES=(
   radarr/config
   sonarr/config
   prowlarr/config
-  overseerr/config
+  seerr/config
   tautulli/config
   bazarr/config
   uptime-kuma
