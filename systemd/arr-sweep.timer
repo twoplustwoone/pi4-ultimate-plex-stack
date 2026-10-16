@@ -1,0 +1,11 @@
+[Unit]
+Description=Six-hourly Sonarr/Radarr missing-media sweep
+
+[Timer]
+# Host clock is UTC; the zone keeps these at local times.
+OnCalendar=*-*-* 00,06,12,18:20:00 America/New_York
+Persistent=true
+Unit=arr-sweep.service
+
+[Install]
+WantedBy=timers.target
