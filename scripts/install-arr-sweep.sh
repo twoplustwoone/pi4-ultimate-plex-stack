@@ -15,14 +15,21 @@ for f in $home/arr-sweep.py $home/arr_sweep.py $repo/systemd/arr-sweep.service $
 done
 [[ -d $repo/.local ]] || die "$repo/.local missing"
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
+token_file=$home/.arr-sweep-push-token
+if [[ ! -s $token_file ]]; then
+  ( umask 077; python3 -c 'import secrets; print(secrets.token_urlsafe(16))' > "$token_file" )
+  echo "generated Kuma push token in $token_file"
+fi
+chown twoplustwoone:twoplustwoone "$token_file"
+chmod 0600 "$token_file"
 
 # Kuma first: the canary timer below may fire at once (Persistent catch-up)
 # and must find Kuma running. Change it while stopped, in one transaction.
 docker stop uptime-kuma >/dev/null
 trap 'docker start uptime-kuma >/dev/null' EXIT
-python3 - "$repo/.local/kuma-before-arr-sweep-$stamp.db" <<'PY'
+python3 - "$repo/.local/kuma-before-arr-sweep-$stamp.db" "$token_file" <<'PY'
 import os, sqlite3, sys
-TOKEN, NAME = 'aSw33pHb7xQ2kLm9', 'arr-sweep heartbeat'
+TOKEN, NAME = open(sys.argv[2]).read().strip(), 'arr-sweep heartbeat'
 # Kuma alerts once on the transition to DOWN; re-notify about daily instead.
 RESEND = {12: (2700, 32), 13: (3600, 24)}
 NEW_INTERVAL, NEW_RESEND = 25200, 4

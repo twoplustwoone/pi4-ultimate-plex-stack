@@ -15,7 +15,9 @@ from arr_sweep import RemovePendingAndSearch, plan, radarr_snapshot, sonarr_snap
 
 APPLY = "--apply" in sys.argv
 LOCK_PATH = os.environ.get("ARR_SWEEP_LOCK", "/home/twoplustwoone/.arr-sweep.lock")
-PUSH_URL = "http://127.0.0.1:3001/api/push/aSw33pHb7xQ2kLm9"
+# Kuma is reachable through the tunnel, so the token stays out of the repo:
+# anyone holding it could report this job alive. install-arr-sweep.sh writes it.
+PUSH_TOKEN_FILE = os.environ.get("ARR_SWEEP_PUSH_TOKEN_FILE", "/home/twoplustwoone/.arr-sweep-push-token")
 PORTS = {"sonarr": 8989, "radarr": 7878}
 REMOVE_PARAMS = "removeFromClient=true&blocklist=true&skipRedownload=true"
 SEARCH_PAUSE_SECONDS = 5
@@ -93,8 +95,10 @@ def execute(d):
 
 def heartbeat(status, msg):
     try:
-        urllib.request.urlopen(PUSH_URL + "?status=%s&msg=%s" % (status, urllib.parse.quote(msg[:100])),
-                               timeout=15).read()
+        with open(PUSH_TOKEN_FILE) as f:
+            token = f.read().strip()
+        urllib.request.urlopen("http://127.0.0.1:3001/api/push/%s?status=%s&msg=%s"
+                               % (token, status, urllib.parse.quote(msg[:100])), timeout=15).read()
         print("heartbeat sent status=%s" % status)
     except Exception as e:
         print("heartbeat FAILED: %s" % type(e).__name__)
