@@ -2,8 +2,9 @@
 Description=Periodic Plex request-pipeline health check
 
 [Timer]
-OnBootSec=15min
-OnUnitActiveSec=6h
+# Calendar, not OnBootSec/OnUnitActiveSec: a monotonic timer whose boot
+# trigger is lost has no base after a reboot and never fires again.
+OnCalendar=*:0/15
 Persistent=true
 Unit=pipeline-canary.service
 

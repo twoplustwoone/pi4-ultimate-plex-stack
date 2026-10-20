@@ -83,7 +83,7 @@ not appearance.
 ## Monitoring
 
 Failures are routed to Discord via a webhook shared by Uptime Kuma and the arr
-apps. `scripts/pipeline-canary.py` runs every 6 hours and reports what liveness
+apps. `scripts/pipeline-canary.py` runs every 15 minutes and reports what liveness
 checks structurally cannot: everything green while nothing is delivered. It
 heartbeats an Uptime Kuma push monitor on every run, so its own death is
 detectable.
