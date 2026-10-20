@@ -12,9 +12,35 @@ own heartbeat stays green even when it has stopped deleting anything.
   --apply    post to Discord if there are findings
 """
 import http.cookiejar, json, sqlite3, subprocess, sys, time, urllib.request, urllib.parse
+import fcntl, os, tempfile
+from tracker_health import (QBM_DIGEST, STALE_SECONDS, acknowledge, advance,
+    config_problems, initial_state, last_scan, load_state, observations,
+    pipeline_signature, private_torrent, sanitize, save_state)
 from datetime import datetime, timezone
+from ipt_credit import (CreditUnavailable, fetch_required, with_stored_credentials,
+    identity_map, advance_credit, fetch_account_ratio)
+from torrent_retirement import (advance_retirement, initial_retirement, intentional_stops, pending_stop_errors,
+    waiver_applies, incarnation, STOPPED)
 
 REPORT_ONLY   = "--apply" not in sys.argv
+TRACKER_STATE = os.environ.get("CANARY_TRACKER_STATE", "/home/twoplustwoone/.canary-tracker-health.json")
+if not REPORT_ONLY:
+    _lock = open(TRACKER_STATE + ".lock", "a")
+    try:
+        fcntl.flock(_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("another canary run is active")
+        sys.exit(0)
+state_error = None
+try:
+    monitor_state = load_state(TRACKER_STATE)
+except (OSError, ValueError, TypeError):
+    monitor_state = initial_state()
+    if "--initialize-state" not in sys.argv:
+        state_error = "tracker monitoring state missing/corrupt; history cannot be verified"
+tracker_events = []
+retirement_events = []
+monitor_errors = []
 STUCK_REQ_DAYS = 3     # approved but still not available
 STUCK_QUEUE_HRS = 24   # sat in the download queue this long
 NO_GRAB_DAYS   = 21    # nothing successfully grabbed at all
@@ -22,22 +48,21 @@ MIN_FREE_GB    = 250
 
 # Torrent cleanup. These mirror qbit_manage/config/config.yml; keep them in step.
 QBIT = "http://127.0.0.1:8080"
-ENV_FILE = "/home/twoplustwoone/pi4-ultimate-plex-stack/.env"
-PRIVATE_RATIO, PRIVATE_DAYS, PRIVATE_MIN_DAYS = 1.0, 15, 3
+ENV_FILE = os.environ.get("CANARY_ENV_FILE", "/home/twoplustwoone/pi4-ultimate-plex-stack/.env")
 PUBLIC_DAYS = 3
 HNR_DAYS = 14          # IPTorrents: 1:1 or 14 days, per torrent
 CLEANUP_GRACE_DAYS = 1 # qbit_manage runs hourly; a day late means it has stalled
-STOPPED_STATE = "/home/twoplustwoone/.canary-stopped-released.json"
+STOPPED_STATE = os.environ.get("CANARY_STOPPED_STATE", "/home/twoplustwoone/.canary-stopped-released.json")
 
 # Dead-man switch: an Uptime Kuma push monitor, pinged on EVERY completed run
 # whether healthy or not. It proves the canary itself is alive. Kuma raises the
 # alarm when the heartbeat stops - the one failure this script cannot report
 # about itself.
 PUSH_URL = "http://127.0.0.1:3001/api/push/16EK9URVJDqa7NhX"
-SUMMARY_STATE = "/home/twoplustwoone/.canary-last-summary"
+SUMMARY_STATE = os.environ.get("CANARY_SUMMARY_STATE", "/home/twoplustwoone/.canary-last-summary")
 SUMMARY_EVERY_DAYS = 7
 
-def sh(*a): return subprocess.check_output(a).decode().strip()
+def sh(*a): return subprocess.check_output(a, stderr=subprocess.DEVNULL).decode().strip()
 _arr_key_cache = {}
 def arr_key(svc):
     if svc not in _arr_key_cache:
@@ -155,7 +180,8 @@ except Exception:
 # 6-8. torrents: seeding owed to IPTorrents is being earned, cleanup keeps pace,
 # and the qBittorrent settings both depend on are still in place.
 def qbit_opener():
-    env = dict(l.strip().split("=", 1) for l in open(ENV_FILE) if "=" in l and not l.startswith("#"))
+    with open(ENV_FILE) as f:
+        env = dict(l.strip().split("=", 1) for l in f if "=" in l and not l.startswith("#"))
     op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     form = urllib.parse.urlencode({"username": env["QBITTORRENT_USER"].strip('"'),
                                    "password": env["QBITTORRENT_PASS"].strip('"')}).encode()
@@ -167,8 +193,8 @@ def qbit_opener():
 def cleanup_due(t, slack_days=0):
     """qbit_manage's rule for a released torrent, optionally `slack_days` past it."""
     days = t["seeding_time"] / 86400 - slack_days
-    if t.get("private"):
-        return days >= PRIVATE_MIN_DAYS and (t["ratio"] >= PRIVATE_RATIO or days >= PRIVATE_DAYS)
+    if private_torrent(t):
+        return False  # Private cleanup is held regardless of local counters.
     return days >= PUBLIC_DAYS
 
 try:
@@ -176,12 +202,131 @@ try:
     qget = lambda path: json.load(op.open(QBIT + path, timeout=30))
     # With qBittorrent < 5.2 its global action overrides qbit_manage's "Stop":
     # "remove with files" deletes outside the recycle bin and min-seed check.
-    act = qget("/api/v2/app/preferences").get("max_ratio_act")
+    preferences = qget("/api/v2/app/preferences")
+    act = preferences.get("max_ratio_act")
     if act != 0:
         findings.append("qBittorrent share-limit action is %s, not 0 (Stop): cleanup bypasses the recycle bin" % act)
     torrents = qget("/api/v2/torrents/info")
     tags = {t["hash"]: {x.strip() for x in t["tags"].split(",")} for t in torrents}
     stopped = {"stoppedUP", "pausedUP"}
+    credit = None
+    credit_identities = {}
+
+    # Account credit is independent of tracker liveness. Existing Prowlarr
+    # authentication stays in memory; a logged-out 200 response is not success.
+    if any("IPT" in tags[t["hash"]] for t in torrents):
+        try:
+            indexers=with_stored_credentials(get("http://127.0.0.1:9696/api/v1/indexer", arr_key("prowlarr")))
+            credit = fetch_required(indexers)
+            print("IPT account credit readable: %d explicit records; absence alone is not completion."
+                  % len(credit["records"]))
+            if len(credit['account_user_ids'])!=1:
+                raise CreditUnavailable('IPT account identity ambiguous; retirement held')
+            account_ratio=fetch_account_ratio(indexers,credit['account_user_ids'][0])
+            if account_ratio['below_minimum']:
+                findings.append('IPT overall account ratio is below 1.0; per-torrent seed-time completion does not fix the account ratio')
+            history=[]
+            for svc,port in (("radarr",7878),("sonarr",8989)):
+                page=1
+                while page<=20:
+                    chunk=get("http://127.0.0.1:%d/api/v3/history?eventType=1&page=%d&pageSize=1000&sortKey=date&sortDirection=descending"
+                              % (port,page),arr_key(svc))
+                    history.extend(chunk.get("records",[]))
+                    if page*1000>=chunk.get("totalRecords",0): break
+                    page+=1
+                else:
+                    raise CreditUnavailable("IPT identity history exceeds validated bound; retirement held")
+            credit_identities=identity_map(history)
+        except CreditUnavailable as e:
+            monitor_errors.append(str(e))  # fixed safe categories, never raw bodies
+        except Exception:
+            monitor_errors.append("IPT account connection lookup failed; retirement held")
+
+    # Read only safe configuration fields and bounded logs; never expose env secrets.
+    probe = '''import json,pathlib,os
+from ruamel.yaml import YAML
+c=YAML(typ='base').load(pathlib.Path('/config/config.yml').read_text())
+print(json.dumps({'config':{k:c.get(k,{}) for k in ['commands','settings','share_limits']},
+'log':'\\n'.join(pathlib.Path('/config/logs/qbit_manage.log').read_text().splitlines()[-20000:]),
+'tz':os.environ.get('TZ','UTC')}))'''
+    metadata = json.loads(sh("docker", "exec", "qbit_manage", "python", "-c", probe))
+    monitor_errors.extend(config_problems(metadata["config"]))
+    recent_run = metadata["log"].rsplit("Starting Run", 1)[-1]
+    if "[ERROR]" in recent_run or "[CRITICAL]" in recent_run or "Traceback" in recent_run:
+        monitor_errors.append("latest qbit_manage run contains errors")
+    image_id = sh("docker", "inspect", "qbit_manage", "--format", "{{.Image}}")
+    digests = json.loads(sh("docker", "image", "inspect", image_id, "--format", "{{json .RepoDigests}}"))
+    if not any(x.endswith("@" + QBM_DIGEST) for x in digests or []):
+        monitor_errors.append("qbit_manage image differs from validated digest")
+    scan = None
+    try:
+        scan = last_scan(metadata["log"], metadata["tz"])
+        if time.time() - scan > STALE_SECONDS:
+            monitor_errors.append("qbit_manage successful tracker scan is over 90 minutes old")
+    except (ValueError, KeyError):
+        monitor_errors.append("qbit_manage has no supported successful tracker scan")
+    tracker_rows = {}
+    for t in torrents:
+        if private_torrent(t) or "issue" in tags[t["hash"]]:
+            try:
+                tracker_rows[t["hash"]] = qget("/api/v2/torrents/trackers?hash=" + t["hash"])
+            except Exception:
+                monitor_errors.append("tracker API read failed; recovery/credit cannot be verified")
+    retirement_previous=monitor_state.get('retirement') or initial_retirement()
+    authorized=intentional_stops(retirement_previous,torrents)
+    waived={t['hash'] for t in torrents if waiver_applies(retirement_previous,t)}
+    groups, healthy, inventory, protection_errors = observations(torrents, tracker_rows, preferences,authorized)
+    if credit is not None:
+        credit_state,credit_findings=advance_credit(monitor_state.get("ipt_credit"),credit["records"],
+            credit_identities,torrents,
+            healthy if scan is not None and time.time()-scan<=STALE_SECONDS else set(),time.time(),
+            satisfied=waived|authorized)
+        monitor_state["ipt_credit"]=credit_state
+        monitor_errors.extend(credit_findings)
+    monitor_errors.extend(protection_errors)
+    if state_error:
+        monitor_errors.append(state_error)
+    if not retirement_previous.get('enabled'):
+        monitor_errors.append('finite seeding policy disabled/uninitialized; retirement held')
+    retirement,stop_actions,retirement_errors=advance_retirement(retirement_previous,torrents,
+        credit['records'] if credit else {},credit_identities,healthy,scan,time.time(),
+        valid=not monitor_errors and scan is not None and time.time()-scan<=STALE_SECONDS
+            and (credit is not None or not any('IPT' in ts for ts in tags.values())))
+    monitor_errors.extend(retirement_errors)
+    monitor_state['retirement']=retirement
+    if stop_actions and not REPORT_ONLY:
+        # Commit proof and intent before the side effect. A crash immediately
+        # after POST is distinguishable from an unverified/manual private stop.
+        save_state(TRACKER_STATE,monitor_state)
+        latest={t['hash']:t for t in qget('/api/v2/torrents/info')}
+        if any(h not in latest or incarnation(latest[h])!=retirement['torrents'][h]['incarnation']
+               or latest[h].get('progress')!=1 for h in stop_actions):
+            raise RuntimeError('retirement candidates changed; stopping held')
+        form=urllib.parse.urlencode({'hashes':'|'.join(stop_actions)}).encode()
+        request=urllib.request.Request(QBIT+'/api/v2/torrents/stop',data=form,headers={'Referer':QBIT})
+        with op.open(request,timeout=30) as response:
+            if response.status!=200: raise RuntimeError('retirement stop request refused')
+            response.read()
+        verified=qget('/api/v2/torrents/info')
+        retirement,_,_=advance_retirement(retirement,[t for t in verified if t['hash'] in stop_actions],credit['records'] if credit else {},
+            credit_identities,healthy,scan,time.time(),valid=False)
+        monitor_state['retirement']=retirement
+    # HTTP 200 precedes qBittorrent's asynchronous stopped-state transition.
+    # Check all persisted intents, including those no longer eligible for retry.
+    monitor_errors.extend(pending_stop_errors(retirement,time.time()))
+    retired_pending=[t for t in torrents if retirement['torrents'].get(t['hash'],{}).get('phase')=='retired'
+        and not retirement['torrents'][t['hash']].get('notified')]
+    if retired_pending:
+        retirement_events.append(('retirement:'+','.join(t['hash'] for t in retired_pending),
+            '%d torrent(s) stopped after verified seeding policy; files retained. Examples: '%len(retired_pending)
+            +'; '.join(sanitize(t['name']) for t in retired_pending[:3])))
+    phases=[r['phase'] for r in retirement['torrents'].values() if r.get('proof')]
+    print('Finite seeding: %d waived; %d buffering; %d pending stop; %d retired.'%
+          (len(waived),phases.count('buffer'),phases.count('pending'),phases.count('retired')))
+    # Invalid scans cannot advance debounce, clear incidents, or replace inventory.
+    monitor_state, tracker_events = advance(monitor_state, groups, healthy, inventory,
+        scan, time.time(), valid=scan is not None and time.time() - scan <= STALE_SECONDS,
+        retired=intentional_stops(retirement, torrents) & {t['hash'] for t in torrents if t['state'] in STOPPED})
 
     queued = [t for t in torrents if t["state"] == "queuedUP"]
     if queued:
@@ -189,7 +334,8 @@ try:
     # Queued, stopped or errored torrents don't announce, so owed seeding time stalls.
     owing = [t for t in torrents if t.get("private") and t["progress"] == 1
              and t["ratio"] < 1 and t["seeding_time"] < HNR_DAYS * 86400
-             and t["state"] not in ("uploading", "stalledUP", "forcedUP", "queuedUP")]
+             and t["state"] not in ("uploading", "stalledUP", "forcedUP", "queuedUP")
+             and t['hash'] not in authorized]
     if owing:
         findings.append("%d private torrents still owe seeding but aren't seeding (e.g. %s: %s)"
                         % (len(owing), owing[0]["name"][:40], owing[0]["state"]))
@@ -199,40 +345,47 @@ try:
     # so track when each was first seen stopped.
     now = time.time()
     try:
-        first_seen = json.load(open(STOPPED_STATE))
+        with open(STOPPED_STATE) as f:
+            first_seen = json.load(f)
     except (OSError, ValueError):
         first_seen = {}
     first_seen = {t["hash"]: first_seen.get(t["hash"], now) for t in torrents
                   if "released" in tags[t["hash"]] and t["state"] in stopped}
     if not REPORT_ONLY:
-        json.dump(first_seen, open(STOPPED_STATE, "w"))
-    overdue = [t for t in torrents if "released" in tags[t["hash"]] and (
+        with open(STOPPED_STATE, "w") as f:
+            json.dump(first_seen, f)
+    overdue = [t for t in torrents if not private_torrent(t) and "released" in tags[t["hash"]] and (
         now - first_seen.get(t["hash"], now) > CLEANUP_GRACE_DAYS * 86400
         or (t["state"] not in stopped and cleanup_due(t, CLEANUP_GRACE_DAYS)))]
     if overdue:
         findings.append("torrent cleanup stalled: %d released torrents past their seeding rule (e.g. %s)"
                         % (len(overdue), overdue[0]["name"][:50]))
 except Exception as e:
-    findings.append("torrent checks failed: %s" % type(e).__name__)
+    monitor_errors.append("torrent monitoring failed: %s" % type(e).__name__)
 
-def heartbeat(msg):
+findings.extend(sorted(set(monitor_errors)))
+
+def heartbeat(msg, status="up"):
     """Tell Kuma the canary ran. A failure here must never mask the real result."""
     if REPORT_ONLY:
         return
     try:
         urllib.request.urlopen(
-            PUSH_URL + "?status=up&msg=" + urllib.parse.quote(msg[:60]), timeout=15).read()
+            PUSH_URL + "?status=" + status + "&msg=" + urllib.parse.quote(msg[:60]), timeout=15).read()
         print("heartbeat sent")
     except Exception as e:
         print("heartbeat FAILED: %s" % type(e).__name__)
 
 def discord(msg):
-    subprocess.run(["docker","cp","uptime-kuma:/app/data/kuma.db","/tmp/kuma_c.db"], check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    hook = json.loads(sqlite3.connect("/tmp/kuma_c.db").execute(
-        "SELECT config FROM notification WHERE id=1").fetchone()[0])["discordWebhookUrl"]
-    subprocess.run(["rm","-f","/tmp/kuma_c.db"])
-    req = urllib.request.Request(hook, data=json.dumps({"content": msg[:1900]}).encode(),
+    # Read live SQLite (including WAL) inside Kuma; copying only its DB can be stale.
+    js = """const sqlite=require('@louislam/sqlite3');
+const db=new sqlite.Database('/app/data/kuma.db',sqlite.OPEN_READONLY);
+db.get('SELECT config FROM notification WHERE id=1',(e,r)=>{
+if(e){process.exitCode=1;}else{process.stdout.write(JSON.parse(r.config).discordWebhookUrl);}db.close();});"""
+    hook = sh("docker", "exec", "uptime-kuma", "node", "-e", js)
+    if not hook.startswith("https://discord.com/api/webhooks/"):
+        raise ValueError("Discord webhook missing")
+    req = urllib.request.Request(hook, data=json.dumps({"content": msg, "allowed_mentions": {"parse": []}}).encode(),
         headers={"Content-Type":"application/json","User-Agent":"pipeline-canary"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.status
@@ -241,34 +394,77 @@ def maybe_weekly_summary(ok):
     """Periodic proof of life. Covers BOTH this script and Kuma failing at once -
     a human notices the weekly message stopped arriving."""
     if REPORT_ONLY:
-        return
+        return True
     import os, time
     try:
         last = os.path.getmtime(SUMMARY_STATE)
     except OSError:
         last = 0
     if (time.time() - last) < SUMMARY_EVERY_DAYS * 86400:
-        return
+        return True
     try:
         discord("Weekly check-in: pipeline canary is running. " +
                 ("No issues found." if ok else "Issues reported separately."))
-        open(SUMMARY_STATE, "w").write(str(time.time()))
+        with open(SUMMARY_STATE, "w") as f:
+            f.write(str(time.time()))
         print("weekly summary sent")
+        return True
     except Exception as e:
         print("weekly summary failed: %s" % type(e).__name__)
+        return False
 
-if not findings:
-    print("pipeline OK - nothing to report")
-    heartbeat("OK")
-    maybe_weekly_summary(True)
-    sys.exit(0)
-
-msg = "**Plex pipeline check failed**\n" + "\n".join("- " + f for f in findings[:15])
-if len(findings) > 15:
-    msg += "\n- ...and %d more" % (len(findings) - 15)
-print(msg)
+now = time.time()
+signature = pipeline_signature(findings)
+pipeline_due = (signature != monitor_state.get("pipeline_signature") or
+    findings and now - monitor_state.get("pipeline_sent", 0) >= 86400)
+lines = [(event_id, sanitize(body, 1400)) for event_id, body in tracker_events]
+lines.extend(retirement_events)
+if findings:
+    print("Pipeline findings:\n" + "\n".join("- " + sanitize(f) for f in findings))
+    if pipeline_due:
+        lines.extend(("pipeline", sanitize(f)) for f in findings)
+elif monitor_state.get("pipeline_signature") and signature != monitor_state["pipeline_signature"]:
+    lines.append(("pipeline", "Previous pipeline findings cleared."))
+if tracker_events:
+    print("Tracker findings:\n" + "\n".join("- " + sanitize(b, 1400) for _, b in tracker_events))
+if not findings and not tracker_events:
+    print("No new alerts. Tracker credit/H&R clearance remains unverified; private cleanup held.")
 
 if not REPORT_ONLY:
-    print("\nposted to Discord: HTTP", discord(msg))
-    heartbeat("%d issue(s)" % len(findings))
-    maybe_weekly_summary(False)
+    delivered = True
+    # Bound messages without truncating away incidents; acknowledge each delivered batch.
+    batches, batch, length = [], [], 0
+    for event in lines:
+        if length + len(event[1]) + 3 > 1700 and batch:
+            batches.append(batch); batch, length = [], 0
+        batch.append(event); length += len(event[1]) + 3
+    if batch: batches.append(batch)
+    for batch in batches:
+        try:
+            discord("**Plex / tracker monitoring**\n" + "\n".join("- " + body for _, body in batch))
+            acknowledge(monitor_state, [k for k, _ in batch if k != "pipeline"], now)
+            for event_id,_ in batch:
+                if event_id.startswith('retirement:'):
+                    for h in event_id.removeprefix('retirement:').split(','):
+                        monitor_state['retirement']['torrents'][h]['notified']=now
+        except Exception as e:
+            print("Discord delivery FAILED: " + type(e).__name__)
+            delivered = False
+            break
+    if delivered and pipeline_due:
+        monitor_state["pipeline_signature"], monitor_state["pipeline_sent"] = signature, now
+    if not maybe_weekly_summary(not findings and not monitor_state["groups"]):
+        delivered = False
+    try:
+        # Missing/corrupt history must stay visible until explicitly initialized.
+        if not state_error:
+            save_state(TRACKER_STATE, monitor_state)
+    except Exception as e:
+        print("Monitoring state write FAILED: " + type(e).__name__)
+        delivered = False
+    heartbeat(("notification/state persistence failed" if not delivered else
+              "monitoring failed: " + sanitize(monitor_errors[0],180)) if monitor_errors or not delivered else
+              "%d pipeline finding(s), %d tracker group(s)" % (len(findings), len(monitor_state["groups"])),
+              "down" if monitor_errors or not delivered else "up")
+    _lock.close()
+    if not delivered: sys.exit(1)
