@@ -10,3 +10,5 @@ cross-seed/config/*
 # qbit_manage runtime state; only config.yml is source
 qbit_manage/config/*
 !qbit_manage/config/config.yml
+
+__pycache__/
