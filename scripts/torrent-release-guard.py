@@ -16,13 +16,13 @@ Every run pings an Uptime Kuma push monitor, reporting down when this guard
 fails or qbit_manage's log goes stale, so one monitor watches both.
 """
 import http.cookiejar, json, os, time, traceback, urllib.parse, urllib.request
+from tracker_health import last_scan, STALE_SECONDS
 
 QBIT = "http://" + os.environ.get("QBIT_HOST", "gluetun:8080")
 ARR = {"radarr": ("http://radarr:7878", os.environ["RADARR_KEY"]),
        "sonarr": ("http://sonarr:8989", os.environ["SONARR_KEY"])}
 HEARTBEAT = os.environ.get("HEARTBEAT_URL", "")
 QBM_LOG = "/qbm-logs/qbit_manage.log"
-QBM_STALE = 3 * 3600  # qbit_manage runs hourly
 INTERVAL = 1800
 RELEASED, WANTED = "released", "arr-wanted"
 
@@ -110,12 +110,15 @@ while True:
     try:
         summary = run()
         print(time.strftime("%Y-%m-%d %H:%M ") + summary, flush=True)
-        stale = time.time() - os.path.getmtime(QBM_LOG)
-        if stale > QBM_STALE:
-            heartbeat("down", "qbit_manage silent for %dh" % (stale // 3600))
+        with open(QBM_LOG) as f:
+            log = "\n".join(f.read().splitlines()[-20000:])
+        stale = time.time() - last_scan(log, os.environ.get("TZ", "UTC"))
+        if stale > STALE_SECONDS:
+            heartbeat("down", "qbit_manage successful tracker scan over 90m old")
         else:
             heartbeat("up", summary)
     except Exception as e:
-        traceback.print_exc()
+        # Tracebacks may contain tracker URLs or API credentials.
+        print("release guard failed: %s" % type(e).__name__, flush=True)
         heartbeat("down", "release guard failed: %s" % type(e).__name__)
     time.sleep(INTERVAL)
