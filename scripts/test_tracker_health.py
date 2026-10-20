@@ -276,6 +276,15 @@ class TrackerTests(unittest.TestCase):
             with self.subTest(log=log):
                 with self.assertRaises(ValueError): h.last_scan(log)
 
+    def test_newest_version_banner_is_not_the_running_version(self):
+        def banner(running, newest):
+            return ("[2026-10-10 09:59:59,000] [qbit_manage.py:713] [INFO]     |     Version: %s (Docker: Python 3.14.7) (Git: master)   |\n"
+                    "[2026-10-10 09:59:59,050] [qbit_manage.py:721] [INFO]     |     Newest Version: %s   |\n" % (running, newest))
+        body = scan_log().split("\n", 1)[1]
+        self.assertGreater(h.last_scan(banner("4.13.0", "4.14.0") + body), 0)
+        with self.assertRaises(ValueError):
+            h.last_scan(banner("4.14.0", "4.13.0") + body)
+
     def test_state_permissions_persistence_and_failed_save(self):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "state.json")

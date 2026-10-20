@@ -37,7 +37,8 @@ def last_scan(log, tz="America/New_York"):
             continue
         # Version is emitted immediately before Starting Run.
         prefix = log[max(0, start - 5000):start]
-        versions = re.findall(r"Version: ([\d.]+)", prefix)
+        # Anchor to the banner so "Newest Version: x" (upstream's latest) is not read as ours.
+        versions = re.findall(r"(?:^|\|)\s*Version: ([\d.]+)", prefix, re.M)
         if not versions or versions[-1] != QBM_VERSION:
             continue
         if re.search(r"\[(?:ERROR|CRITICAL)\]|Traceback|Dry.Run:\s*True|DRY[ _-]?RUN", block, re.I):
