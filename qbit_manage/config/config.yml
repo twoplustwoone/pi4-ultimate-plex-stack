@@ -1,7 +1,8 @@
 # qbit_manage: remove torrents whose library copy has been deleted.
 #
 # A torrent still hardlinked into /share/movies or /share/tv costs no extra
-# disk, so it seeds forever. Once the library copy is deleted (Seerr, Plex,
+# disk. The canary stops verified seeds independently of retaining those files.
+# Once the library copy is deleted (Seerr, Plex,
 # Radarr/Sonarr), the torrent's files have no link outside /share/downloads and
 # get tagged noHL. noHL alone isn't enough: a download that never imported is
 # also unlinked, and there the torrent is the only copy. So cleanup also needs
@@ -16,12 +17,13 @@ commands:
   cat_update: false
   tag_update: true
   rem_unregistered: false
-  tag_tracker_error: false
+  tag_tracker_error: true
   rem_orphaned: false
   tag_nohardlinks: true
   share_limits: true
   skip_qb_version_check: false
-  skip_cleanup: false
+  # Preserve recycled private data until account-side reconciliation.
+  skip_cleanup: true
 
 qbt:
   host: gluetun:8080
@@ -76,20 +78,16 @@ nohardlinks:
     ignore_root_dir: true
 
 share_limits:
-  # Private trackers. IPTorrents' hit-and-run rule is 1:1 ratio OR 14 days
-  # seeding; 15 days leaves a margin. The 3-day minimum keeps a torrent that
-  # hits 1:1 early from being removed before Radarr/Sonarr import it.
-  unlinked_private:
-    priority: 1
+  # Local counters do not prove tracker credit. Re-enable cleanup only after
+  # account-side reconciliation, never automatically upon tracker recovery.
+  private_hold:
+    priority: 0
     include_all_tags:
-    - noHL
     - private
-    - released
-    max_ratio: 1.0
-    max_seeding_time: 15d
-    min_seeding_time: 3d
-    cleanup: true
-    share_limit_action: Stop
+    max_ratio: -1
+    max_seeding_time: -1
+    cleanup: false
+    resume_torrent_after_change: false
   # Public trackers have no seeding obligation; 3 days is only an import window.
   unlinked_public:
     priority: 2
@@ -101,12 +99,14 @@ share_limits:
     max_seeding_time: 3d
     cleanup: true
     share_limit_action: Stop
-  # Still in the library, or still wanted by an arr: seed indefinitely.
+    resume_torrent_after_change: false
+  # File retention is independent of the canary's finite stop policy.
   in_library:
     priority: 999
     max_ratio: -1
     max_seeding_time: -1
     cleanup: false
+    resume_torrent_after_change: false
 
 recyclebin:
   enabled: true
@@ -115,7 +115,8 @@ recyclebin:
   split_by_category: false
 
 webhooks:
-  # Liveness is reported by torrent-release-guard, which checks this log's age.
+  # Canary consumes issue tags and emits sanitized summaries. Native payloads
+  # include tracker URLs/passkeys; do not forward them to Discord.
   run_end:
   error:
   run_start:
