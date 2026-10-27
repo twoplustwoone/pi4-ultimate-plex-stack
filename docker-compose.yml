@@ -22,6 +22,10 @@ services:
       - ${MEDIA_SHARE}:/share
     labels:
       - "autoheal.enable=true"
+      # Plex faces remote clients, so it must take security releases. It is the
+      # exception to Watchtower's monitor-only default and must not be pinned:
+      # a digest pin left PMS 1.42.2 exposed to Plex2Shell for months (2026-10).
+      - "com.centurylinklabs.watchtower.monitor-only=false"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -514,17 +518,19 @@ services:
       - WATCHTOWER_REVIVE_STOPPED=false
       - WATCHTOWER_LIFE_CYCLE_HOOKS=false
       - WATCHTOWER_ROLLING_RESTART=false
-      - WATCHTOWER_INTERVAL=86400
-      - WATCHTOWER_SCHEDULE=
+      # 05:00 site time: after the 03:30 config backup has restarted Plex.
+      - WATCHTOWER_SCHEDULE=0 0 5 * * *
       - WATCHTOWER_LOG_LEVEL=info
       - WATCHTOWER_NOTIFICATION_REPORT=true
       - WATCHTOWER_NOTIFICATION_REPORT_ONLY=true
-      # Monitor-only mode: Watchtower will notify you of available updates but
-      # will NOT apply them automatically. Apply updates intentionally by running:
+      # Monitor-only mode: Watchtower notifies of available updates but does NOT
+      # apply them. Apply updates intentionally by running:
       #   docker compose pull && docker compose up -d
-      # To re-enable auto-updates for specific containers, remove this line and
-      # add label "com.centurylinklabs.watchtower.enable=true" to those services.
+      # A container opts in to auto-updates with the label
+      # "com.centurylinklabs.watchtower.monitor-only=false"; LABEL_TAKE_PRECEDENCE
+      # lets that label override this global default.
       - WATCHTOWER_MONITOR_ONLY=true
+      - WATCHTOWER_LABEL_TAKE_PRECEDENCE=true
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -604,6 +610,40 @@ services:
     environment:
       - NETDATA_CLAIM_TOKEN=${NETDATA_CLAIM_TOKEN:-}
       - NETDATA_CLAIM_URL=https://app.netdata.cloud
+    logging: *default-logging
+
+  # tailscale: private remote access to Plex, so port 32400 is never forwarded.
+  # Host networking puts the tailnet address on the host itself, where Plex
+  # (also host networking) answers on http://<tailscale-ip>:32400. First start:
+  # put a one-off auth key in .env as TS_AUTHKEY, `docker compose up -d
+  # tailscale`, then delete it from .env. The interactive login URL is useless
+  # here: containerboot gives `tailscale up` 60s, then restarts with a new URL.
+  tailscale:
+    image: ${TAILSCALE_IMAGE:-tailscale/tailscale:stable}
+    container_name: tailscale
+    network_mode: host
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_HOSTNAME=yggdrasil
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      # Use the key only when not yet logged in; the state dir keeps the node.
+      - TS_AUTH_ONCE=true
+      # The image defaults to iptables-legacy, which this host's kernel lacks
+      # ("can't initialize iptables table `filter'"); let it pick nftables.
+      - TS_DEBUG_FIREWALL_MODE=auto
+    volumes:
+      - ${BASE_PATH}/tailscale:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    labels:
+      # The tailnet is now the way in from outside; keep it current like Plex.
+      - "com.centurylinklabs.watchtower.monitor-only=false"
+    restart: unless-stopped
+    pull_policy: if_not_present
     logging: *default-logging
 
   # scrutiny: SMART disk-health monitoring with history + web dashboard at

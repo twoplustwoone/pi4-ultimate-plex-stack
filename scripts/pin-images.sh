@@ -9,8 +9,9 @@ if [[ ! -f "$env_file" ]]; then
   exit 1
 fi
 
+# PLEX_IMAGE and TAILSCALE_IMAGE are deliberately absent: both face remote
+# clients and auto-update through Watchtower (see docker-compose.yml).
 image_vars=(
-  PLEX_IMAGE
   JELLYFIN_IMAGE
   RADARR_IMAGE
   SONARR_IMAGE
