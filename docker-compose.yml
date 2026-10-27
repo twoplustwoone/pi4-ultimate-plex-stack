@@ -632,6 +632,12 @@ services:
       # The image defaults to iptables-legacy, which this host's kernel lacks
       # ("can't initialize iptables table `filter'"); let it pick nftables.
       - TS_DEBUG_FIREWALL_MODE=auto
+      # Advertise only this host's LAN address. plex.tv's edge (Cloudflare)
+      # rejects device updates listing a 100.64/10 tailnet URI, so Plex can't
+      # publish one; remote clients instead reach the 192-168-1-246 plex.direct
+      # connection plex.tv already lists, through this route. Approve it once in
+      # the Tailscale admin console.
+      - TS_ROUTES=192.168.1.246/32
     volumes:
       - ${BASE_PATH}/tailscale:/var/lib/tailscale
     devices:

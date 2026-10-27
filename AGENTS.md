@@ -49,6 +49,22 @@ service APIs are reachable over HTTP on localhost.
    container intentionally stopped and it will **not** come back after a reboot.
    Before an OS upgrade, let the reboot stop them; do not stop them by hand.
 
+## Remote access and Plex updates
+
+Plex was compromised through Plex2Shell in October 2026 while pinned to a
+ten-month-old build with port 32400 forwarded. Two rules follow:
+
+- **Plex is never pinned and never forwarded.** It tracks `:latest` and is the
+  one container (with `tailscale`) that Watchtower updates; everything else is
+  monitor-only. Remote access in Plex stays off; `plex-upnp-port.timer` is
+  disabled and must stay that way.
+- **Remote clients come in over Tailscale** (container `tailscale`, node
+  `yggdrasil`, `100.110.236.10`). plex.tv's Cloudflare edge rejects any device
+  update listing a `100.64/10` address, so do not set Plex's custom connection
+  URL to the tailnet IP — it breaks Plex's publishing with 403s. Instead the
+  node advertises the route `192.168.1.246/32`, and clients use the
+  `192-168-1-246.<hash>.plex.direct` connection plex.tv already lists.
+
 ## Talking to the services
 
 Radarr, Sonarr and Prowlarr keep their API key in `config.xml`:
