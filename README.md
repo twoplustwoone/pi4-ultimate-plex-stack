@@ -37,7 +37,6 @@ Currently you can choose from the **Basic** or the **Advanced** compose using Do
 
 1. Linux
 2. Docker / Docker Compose
-3. OPTIONAL: Portainer - Docker GUI
 
 ## How to Use
 

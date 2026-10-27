@@ -12,7 +12,7 @@ or as a one-time physical task. None of these can be done through code changes.
 The code in this repo has been updated. Pull/copy it to your Pi and run:
 
 ```bash
-# Bring up everything including the new services (autoheal, netdata, portainer)
+# Bring up everything including the new services (autoheal, netdata)
 docker compose --profile advanced up -d
 
 # Confirm autoheal is running
@@ -65,7 +65,6 @@ Add an Application for each of these:
 - `radarr.twoplustwoone.dev` — Action: Allow, Condition: email = yours
 - `sonarr.twoplustwoone.dev` — Action: Allow, Condition: email = yours
 - `prowlarr.twoplustwoone.dev` (if exposed) — same
-- `portainer.twoplustwoone.dev` (if you add it to the tunnel) — same
 
 Do NOT add Cloudflare Access to Overseerr or Plex — those are intended for
 wider access and handle auth themselves.
@@ -187,12 +186,6 @@ Alternatively, look into [Recyclarr](https://recyclarr.dev) — a tool that sync
 TRaSH Guides quality profiles into Radarr/Sonarr from a config file. It automates
 all of the above and keeps profiles updated as recommendations evolve.
 
-### 10. Add Portainer to Cloudflare Tunnel (optional)
-
-If you want Docker management from outside your network, add a public hostname
-in Cloudflare Tunnel for Portainer (`portainer.twoplustwoone.dev` → `http://localhost:9000`)
-and protect it with Cloudflare Access (mandatory — do not expose Portainer without Access).
-
 ---
 
 ## Things that will always require SSH (be honest about it)
@@ -205,7 +198,7 @@ A few things genuinely need SSH or direct Pi access and always will:
   becomes unavailable, you need SSH to recover
 - **Crontab management**: editing scheduled tasks
 - **Pi boot issues**: if the Pi fails to boot, SSH is unavailable by definition
-- **Initial Portainer and Netdata setup**: first-time configuration requires
+- **Initial Netdata setup**: first-time configuration requires
   accessing their UIs from your local network before they're tunneled
 
 The goal of this setup is not to eliminate SSH — it's to make SSH an occasional

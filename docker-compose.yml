@@ -606,29 +606,6 @@ services:
       - NETDATA_CLAIM_URL=https://app.netdata.cloud
     logging: *default-logging
 
-  # portainer: web UI for Docker management — view containers, logs, resource
-  # usage, restart services — without needing SSH.
-  # Protect with Cloudflare Access if you expose it externally; do not expose
-  # it without Access authentication.
-  portainer:
-    image: ${PORTAINER_IMAGE:-portainer/portainer-ce:latest}
-    container_name: portainer
-    profiles: ["advanced"]
-    restart: unless-stopped
-    pull_policy: if_not_present
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${BASE_PATH}/portainer:/data
-    ports:
-      - "9000:9000"
-    logging: *default-logging
-    # portainer/portainer-ce is built FROM scratch — no shell, no curl, no wget.
-    # A CMD-SHELL healthcheck can't even execute in this image, so it always
-    # reports unhealthy regardless of whether the app is actually up. Disabled
-    # rather than chasing a curl/wget-capable tag.
-    healthcheck:
-      disable: true
-
   # scrutiny: SMART disk-health monitoring with history + web dashboard at
   # http://<pi-ip>:8666. Added 2026-07-09 after the WD My Passport 4TB media
   # drive showed 10,008 reallocated sectors (root cause of the 2026-07-03
