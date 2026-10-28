@@ -19,7 +19,20 @@ services:
       - /dev/dri:/dev/dri
     volumes:
       - ${BASE_PATH}/plex/config:/config
-      - ${MEDIA_SHARE}:/share
+      # Only the two library folders, not the whole disk: a compromised Plex
+      # (2026-10) could read everything on ${MEDIA_SHARE}. Read-write so a
+      # Plex-side delete still removes the file. No symlinks on the disk;
+      # media are hardlinks into downloads, which do not need the path.
+      - type: bind
+        source: ${MEDIA_SHARE}/movies
+        target: /share/movies
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MEDIA_SHARE}/tv
+        target: /share/tv
+        bind:
+          create_host_path: false
     labels:
       - "autoheal.enable=true"
       # Plex faces remote clients, so it must take security releases. It is the
