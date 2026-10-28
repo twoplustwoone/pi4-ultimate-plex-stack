@@ -248,6 +248,19 @@ def advance(previous, groups, healthy, inventory, scan, now, valid=True, retired
     if not valid:
         return s, events
     retired = set(retired or ())
+    # qBittorrent marks a tracker "updating" for the length of every announce,
+    # so any snapshot catches a few torrents mid-announce. A torrent is
+    # unconfirmed only if the previous run also found it unconfirmed.
+    last = s.get('unconfirmed', {})
+    s['unconfirmed'] = {k: sorted(o['hashes']) for k, o in groups.items() if k.endswith(': tracker status unknown')}
+    groups = dict(groups)
+    for key, hashes in s['unconfirmed'].items():
+        kept = sorted(set(hashes) & set(last.get(key, ())))
+        if kept:
+            names = [inventory[h] for h in kept if h in inventory][:3]
+            groups[key] = {**groups[key], 'hashes': kept, 'examples': names or groups[key]['examples']}
+        else:
+            del groups[key]
     notices = s.setdefault('tracker_notices', {})
     closed = s.setdefault('recently_closed', {})
     legacy_trackers = {k.rsplit(': ', 1)[0] for k in s['groups'] if k.rsplit(': ', 1)[0] not in notices}
@@ -305,15 +318,19 @@ def advance(previous, groups, healthy, inventory, scan, now, valid=True, retired
             if key.endswith("tracker credential rejection"):
                 body += ". Affected announcements were rejected; this alone does not establish an account-wide restriction."
             events.append(("group:" + key, body))
-    # Public torrents are judged by qbit_manage's issue tag and may be cleaned
-    # up, so one recovers once it is in no current public issue group.
-    public_issues = set().union(*(set(o['hashes']) for k, o in groups.items() if k.startswith('public tracker: ')))
+    current = {}
+    for k, o in groups.items():
+        current.setdefault(k.rsplit(': ', 1)[0], set()).update(o['hashes'])
     for key, g in list(s["groups"].items()):
         if key in groups:
             continue
-        # All previously affected private torrents must still exist and be working.
+        # A torrent recovers once it is in no current issue group of its tracker.
+        # Public torrents may also have been cleaned up (qbit_manage's rule);
+        # private ones must still exist.
         seen = set(g.get('seen_hashes', g['hashes']))
-        if seen.issubset(healthy | retired) or key.startswith('public tracker: ') and not seen & public_issues:
+        tracker = key.rsplit(': ', 1)[0]
+        if not seen & current.get(tracker, set()) and (
+                tracker == 'public tracker' or seen <= healthy | retired | set(inventory)):
             if scan != g["last_scan"]:
                 g["recovery_count"] += 1
                 g["last_scan"] = scan

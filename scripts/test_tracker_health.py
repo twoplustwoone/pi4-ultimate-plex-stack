@@ -81,6 +81,42 @@ class TrackerTests(unittest.TestCase):
         s, events = h.advance(s, {}, set(), {}, 3, 300)
         self.assertFalse([e for e in events if e[0].startswith("recovery:")])
 
+    def unknown(self, *hashes):
+        return {"IPTorrents: tracker status unknown": {"hashes": list(hashes), "examples": [n.upper() for n in hashes],
+                "messages": ["no confirmed working announcement"], "critical": False}}
+
+    def test_torrents_caught_mid_announce_are_not_an_incident(self):
+        inv = {"a": "A", "b": "B", "c": "C"}
+        s = h.initial_state()
+        for scan, mid_announce in enumerate(["a", "b", "c", "a"], 1):
+            s, events = h.advance(s, self.unknown(mid_announce), set(inv) - {mid_announce}, inv, scan, scan * 100)
+            self.assertEqual(events, [])
+        self.assertNotIn("IPTorrents: tracker status unknown", s["groups"])
+
+    def test_torrent_unconfirmed_on_consecutive_runs_still_alerts(self):
+        inv = {"a": "A", "b": "B"}
+        s = h.initial_state()
+        sent = []
+        for scan, unconfirmed in enumerate([("a", "b"), ("a",), ("a",)], 1):
+            s, events = h.advance(s, self.unknown(*unconfirmed), set(inv) - set(unconfirmed), inv, scan, scan * 100)
+            sent += events
+        self.assertEqual(len(sent), 1)
+        self.assertIn("IPTorrents: tracker status unknown: 1 torrent(s)", sent[0][1])
+        self.assertIn("Examples: A", sent[0][1])
+
+    def test_open_unknown_incident_closes_despite_announce_churn(self):
+        inv = {"a": "A", "b": "B", "c": "C"}
+        s = h.initial_state()
+        for scan in (1, 2, 3):
+            s, events = h.advance(s, self.unknown("a", "b"), {"c"}, inv, scan, scan * 100)
+            h.acknowledge(s, [e[0] for e in events], scan * 100)
+        recovered = []
+        for scan, mid_announce in enumerate(["c", "b", "a"], 4):
+            s, events = h.advance(s, self.unknown(mid_announce), set(inv) - {mid_announce}, inv, scan, scan * 100)
+            recovered += [e for e in events if e[0].startswith("recovery:")]
+            h.acknowledge(s, [e[0] for e in events], scan * 100)
+        self.assertEqual(len(recovered), 1)
+
     def test_rejected_stalled_seed_is_immediate(self):
         groups, healthy, inv, _ = self.observe([tracker()])
         s, events = h.advance(h.initial_state(), groups, healthy, inv, 1, 100)
