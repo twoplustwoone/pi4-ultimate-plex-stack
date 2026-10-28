@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from ipt_credit import (CreditUnavailable, fetch_required, with_stored_credentials,
     identity_map, advance_credit, fetch_account_ratio)
 from torrent_retirement import (advance_retirement, initial_retirement, intentional_stops, pending_stop_errors,
-    waiver_applies, incarnation, STOPPED)
+    retirement_paused, waiver_applies, incarnation, STOPPED)
 
 REPORT_ONLY   = "--apply" not in sys.argv
 TRACKER_STATE = os.environ.get("CANARY_TRACKER_STATE", "/home/twoplustwoone/.canary-tracker-health.json")
@@ -286,6 +286,7 @@ print(json.dumps({'config':{k:c.get(k,{}) for k in ['commands','settings','share
             except Exception:
                 monitor_errors.append("tracker API read failed; recovery/credit cannot be verified")
     retirement_previous=monitor_state.get('retirement') or initial_retirement()
+    paused=retirement_paused(retirement_previous)
     authorized=intentional_stops(retirement_previous,torrents)
     waived={t['hash'] for t in torrents if waiver_applies(retirement_previous,t)}
     groups, healthy, inventory, protection_errors = observations(torrents, tracker_rows, preferences,authorized)
@@ -295,11 +296,17 @@ print(json.dumps({'config':{k:c.get(k,{}) for k in ['commands','settings','share
             healthy if scan is not None and time.time()-scan<=STALE_SECONDS else set(),time.time(),
             satisfied=waived|authorized)
         monitor_state["ipt_credit"]=credit_state
-        monitor_errors.extend(credit_findings)
+        if paused:
+            # Credit evidence gates only retirement stops, and none happen while paused.
+            for f in credit_findings: print("retirement paused, not a failure: " + f)
+        else:
+            monitor_errors.extend(credit_findings)
     monitor_errors.extend(protection_errors)
     if state_error:
         monitor_errors.append(state_error)
-    if not retirement_previous.get('enabled'):
+    if paused:
+        print('Finite seeding retirement is paused; no torrents will be stopped.')
+    elif not retirement_previous.get('enabled'):
         monitor_errors.append('finite seeding policy disabled/uninitialized; retirement held')
     retirement,stop_actions,retirement_errors=advance_retirement(retirement_previous,torrents,
         credit['records'] if credit else {},credit_identities,healthy,scan,time.time(),

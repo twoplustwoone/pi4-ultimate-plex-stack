@@ -42,6 +42,16 @@ def initial_retirement():
     return {'version':1,'enabled':False,'waiver':None,'torrents':{}}
 
 
+def retirement_paused(state):
+    """A deliberate pause: disabled with a paused_at stamp, not merely uninitialized.
+
+    Nothing is stopped while paused, so missing credit evidence holds nothing back
+    and must not hold the canary's heartbeat down (it masked real failures).
+    """
+    stamp=(state or {}).get('paused_at')
+    return not (state or {}).get('enabled') and isinstance(stamp,(int,float)) and math.isfinite(stamp)
+
+
 def incarnation(t):
     return {'added_on':t.get('added_on'),'completion_on':t.get('completion_on')}
 

@@ -137,9 +137,9 @@ services:
 
   # Seerr is Overseerr's successor (the projects merged in 2026). It runs as the
   # image's `node` user (UID 1000), ignores PUID/PGID, and needs `init: true`.
-  # Its config is a copy of Overseerr's, migrated in place on first start, so
-  # ${BASE_PATH}/overseerr/config stays untouched as the rollback.
-  # The `overseerr` alias keeps http://overseerr:5055 resolving for the
+  # Its config is a copy of Overseerr's, migrated in place on first start. The
+  # old Overseerr container and config were removed in 2026-10 (archive in
+  # ~/ir-plex-20261027). The `overseerr` alias keeps http://overseerr:5055 resolving for the
   # Cloudflare tunnel and Uptime Kuma, which both address it by that name.
   seerr:
     image: ${SEERR_IMAGE:-ghcr.io/seerr-team/seerr:latest}
@@ -483,8 +483,10 @@ services:
     image: ${DOZZLE_IMAGE:-amir20/dozzle:latest}
     container_name: dozzle
     profiles: ["advanced"]
+    # Localhost only: Dozzle has no login and holds the Docker socket. Reach it
+    # with `ssh -L 9999:127.0.0.1:9999 twoplustwoone@192.168.1.246`.
     ports:
-      - 9999:8080
+      - 127.0.0.1:9999:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped

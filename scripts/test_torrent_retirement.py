@@ -154,4 +154,17 @@ class RetirementTests(unittest.TestCase):
         self.assertFalse(actions)
 
 
+
+class PausedTest(unittest.TestCase):
+    def test_only_a_stamped_disable_is_a_pause(self):
+        from torrent_retirement import retirement_paused
+        s=initial_retirement()
+        self.assertFalse(retirement_paused(s))            # uninitialized still fails health
+        s['paused_at']=1792508889
+        self.assertTrue(retirement_paused(s))
+        s['enabled']=True
+        self.assertFalse(retirement_paused(s))            # enabled wins over a stale stamp
+        self.assertFalse(retirement_paused({'enabled':False,'paused_at':float('nan')}))
+        self.assertFalse(retirement_paused(None))
+
 if __name__=='__main__': unittest.main()
