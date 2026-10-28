@@ -357,7 +357,7 @@ class TrackerTests(unittest.TestCase):
             def open(self, request, **kw):
                 url = request if isinstance(request, str) else request.full_url
                 if url.endswith('/auth/login'): return Response(b'Ok.')
-                if '/app/preferences' in url: return response({'max_ratio_act': 0})
+                if '/app/preferences' in url: return response({'max_ratio_act': 0, 'listen_port': 49070})
                 if '/torrents/info' in url: return response([torrent()])
                 if '/torrents/trackers' in url: return response([tracker()])
                 raise AssertionError(url)
@@ -397,6 +397,7 @@ class TrackerTests(unittest.TestCase):
             raise AssertionError(url)
         def command(args, **kw):
             if args[0] == 'df': return b'Avail\n1000000000000\n'
+            if '/tmp/gluetun/forwarded_port' in args: return b'49070'
             if tuple(args[0:3]) == ('docker','image','inspect'):
                 return json.dumps(['image@'+h.QBM_DIGEST]).encode()
             if tuple(args[0:3]) == ('docker','inspect','qbit_manage'): return b'sha256:fixture'
@@ -480,6 +481,22 @@ class TrackerTests(unittest.TestCase):
             apply_async()
             self.assertTrue(any('status=down' in c for c in calls))
             self.assertTrue(any('authorized%20stop%20unconfirmed' in c for c in calls))
+
+
+
+class PortForwardTest(unittest.TestCase):
+    def test_matching_port_is_healthy(self):
+        self.assertIsNone(h.port_forward_problem("49070\n", 49070))
+        self.assertIsNone(h.port_forward_problem("49070,49071", 49070))
+
+    def test_missing_forward_is_reported(self):
+        for empty in ("", "\n", None):
+            self.assertIn("no port", h.port_forward_problem(empty, 49070))
+
+    def test_drifted_listen_port_is_reported(self):
+        problem = h.port_forward_problem("28062", 29587)
+        self.assertIn("listens on port 29587", problem)
+        self.assertIn("forwards 28062", problem)
 
 
 if __name__ == "__main__": unittest.main()

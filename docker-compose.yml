@@ -219,6 +219,7 @@ services:
       - 8080:8080 # qBittorrent WebUI
     volumes:
       - ${BASE_PATH}/gluetun:/gluetun
+      - ./scripts/gluetun-qbt-port.sh:/qbt-port.sh:ro
     environment:
       - VPN_SERVICE_PROVIDER=private internet access
       - VPN_TYPE=openvpn
@@ -229,6 +230,12 @@ services:
       # inbound peer connections. gluetun writes the assigned port to
       # /tmp/gluetun/forwarded_port; qBittorrent's listen port is set to match.
       - VPN_PORT_FORWARDING=on
+      # Push each newly forwarded port into qBittorrent, which shares this
+      # network namespace. Hand-set ports drifted: qBittorrent listened on 29587
+      # while PIA forwarded 28062 (2026-09 to 10), and seeding starved.
+      - VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh /qbt-port.sh {{PORTS}}
+      - QBT_USER=${QBITTORRENT_USER}
+      - QBT_PASS=${QBITTORRENT_PASS}
     # NOTE: autoheal intentionally removed 2026-04-10. Gluetun has its own
     # internal VPN healthcheck ("Restart VPN on healthcheck failure: yes")
     # that re-establishes the tunnel without restarting the container. Layering

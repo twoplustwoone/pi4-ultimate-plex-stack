@@ -378,3 +378,19 @@ def pipeline_signature(findings):
     # Age text changes every run and must not defeat notification suppression.
     normalized = [re.sub(r"\b\d+(?:\.\d+)?\s*(?:h|hours?|days?)\b", "[age]", sanitize(x)) for x in findings]
     return hashlib.sha256(json.dumps(sorted(set(normalized))).encode()).hexdigest()
+
+
+def port_forward_problem(forwarded, listen_port):
+    """Why peers cannot connect in through the VPN, or None.
+
+    gluetun writes PIA's forwarded port to a file and qBittorrent must listen on
+    it. In 2026-09 they drifted apart, then the forward failed outright, and
+    seeding starved for a month with every service green.
+    """
+    port = (forwarded or "").strip().split(",")[0]
+    if not port.isdigit():
+        return "VPN port forwarding has no port: peers cannot connect in, so seeding starves"
+    if int(port) != listen_port:
+        return ("qBittorrent listens on port %s but the VPN forwards %s: peers cannot connect in, "
+                "so seeding starves" % (listen_port, port))
+    return None

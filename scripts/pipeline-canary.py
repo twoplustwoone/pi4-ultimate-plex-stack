@@ -15,7 +15,7 @@ import http.cookiejar, json, sqlite3, subprocess, sys, time, urllib.request, url
 import fcntl, os, tempfile
 from tracker_health import (QBM_DIGEST, STALE_SECONDS, acknowledge, advance,
     config_problems, initial_state, last_scan, load_state, observations,
-    pipeline_signature, private_torrent, sanitize, save_state)
+    pipeline_signature, port_forward_problem, private_torrent, sanitize, save_state)
 from datetime import datetime, timezone
 from ipt_credit import (CreditUnavailable, fetch_required, with_stored_credentials,
     identity_map, advance_credit, fetch_account_ratio)
@@ -206,6 +206,19 @@ try:
     act = preferences.get("max_ratio_act")
     if act != 0:
         findings.append("qBittorrent share-limit action is %s, not 0 (Stop): cleanup bypasses the recycle bin" % act)
+    # Peers reach qBittorrent only through the VPN's forwarded port. gluetun
+    # empties the port file while it reconnects, so recheck once before reporting.
+    def forwarded_port():
+        try:
+            return sh("docker", "exec", "gluetun", "cat", "/tmp/gluetun/forwarded_port")
+        except subprocess.CalledProcessError:
+            return ""
+    problem = port_forward_problem(forwarded_port(), preferences.get("listen_port"))
+    if problem:
+        time.sleep(60)
+        problem = port_forward_problem(forwarded_port(), qget("/api/v2/app/preferences").get("listen_port"))
+    if problem:
+        findings.append(problem)
     torrents = qget("/api/v2/torrents/info")
     tags = {t["hash"]: {x.strip() for x in t["tags"].split(",")} for t in torrents}
     stopped = {"stoppedUP", "pausedUP"}

@@ -40,7 +40,10 @@ service APIs are reachable over HTTP on localhost.
    gluetun` fails, because Docker does not order the arguments — start gluetun
    first. Restarting gluetun also silently breaks qBittorrent's networking;
    restart qBittorrent afterwards. The symptom is `wget: bad address` inside the
-   container.
+   container. qBittorrent's listen port belongs to gluetun: each time PIA
+   forwards a port, `scripts/gluetun-qbt-port.sh` logs in and sets it. Do not set
+   it by hand, and keep "bypass authentication on localhost" off. qBittorrent
+   bans an IP after five failed logins, and the ban lasts until it restarts.
 2. **Plex uses host networking; most services use the bridge.** Inside a
    bridged container, `127.0.0.1` is that container — not Plex. Reach Plex at
    `192.168.1.246:32400`. Tautulli was misconfigured this way and recorded
