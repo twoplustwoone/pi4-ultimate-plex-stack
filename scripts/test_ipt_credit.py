@@ -29,6 +29,18 @@ class CreditTests(unittest.TestCase):
         with self.assertRaises(c.CreditUnavailable): c.parse_account_ratio(html,'456')
         with self.assertRaises(c.CreditUnavailable): c.parse_account_ratio(html.replace('UPLOADED','unknown'),'123')
 
+    def test_account_ratio_reads_label_first_layout(self):
+        # IPT's VIP profile (2026-10-28) puts each label before its totals.
+        html=('<a href="/u/123">User</a>Ratio 0.552 Uploaded 426 GB Downloaded 771 GB Activate Freeleech '
+              'Uploaded 426.45 GB 457,899,577,111 B Downloaded 772.00 GB 828,924,250,513 B Bonus')
+        self.assertEqual(c.parse_account_ratio(html,'123'),
+                         {'uploaded':457899577111,'downloaded':828924250513,'below_minimum':True})
+
+    def test_account_ratio_refuses_mixed_layouts(self):
+        html=('<a href="/u/123">User</a>1 GB 5 B Uploaded 2 GB 9 B Downloaded '
+              'Uploaded 1 GB 7 B Downloaded 2 GB 3 B')
+        with self.assertRaises(c.CreditUnavailable): c.parse_account_ratio(html,'123')
+
     def test_bounded_plain_and_gzip_pages(self):
         body=page().encode()
         for raw in (body,gzip.compress(body)):

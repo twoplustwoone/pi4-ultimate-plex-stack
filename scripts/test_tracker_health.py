@@ -60,6 +60,27 @@ class TrackerTests(unittest.TestCase):
         self.assertIn("at least one IPT endpoint", events[0][1])
         self.assertIn("other endpoints may still reject", events[0][1])
 
+    def test_cleaned_up_public_torrent_closes_its_incident(self):
+        public = dict(torrent(name="Public"), private=False, tags="issue")
+        groups, healthy, inv, _ = h.observations([public], {"a": [tracker(4, "Host not found", "udp://dead.tk:6969")]})
+        self.assertIn("public tracker: tracker unavailable", groups)
+        s, events = h.advance(h.initial_state(), groups, healthy, inv, 1, 100)
+        s, events = h.advance(s, groups, healthy, inv, 2, 200)
+        h.acknowledge(s, [e[0] for e in events], 200)
+        # qbit_manage removed the torrent after its public seeding rule.
+        s, _ = h.advance(s, {}, set(), {}, 3, 300)
+        s, events = h.advance(s, {}, set(), {}, 4, 400)
+        self.assertEqual([e[0] for e in events], ["recovery:public tracker: tracker unavailable"])
+        self.assertIn("cleaned up", events[0][1])
+
+    def test_vanished_private_torrent_does_not_close_its_incident(self):
+        groups, healthy, inv, _ = self.observe([tracker()])
+        s, events = h.advance(h.initial_state(), groups, healthy, inv, 1, 100)
+        h.acknowledge(s, [e[0] for e in events], 100)
+        s, _ = h.advance(s, {}, set(), {}, 2, 200)
+        s, events = h.advance(s, {}, set(), {}, 3, 300)
+        self.assertFalse([e for e in events if e[0].startswith("recovery:")])
+
     def test_rejected_stalled_seed_is_immediate(self):
         groups, healthy, inv, _ = self.observe([tracker()])
         s, events = h.advance(h.initial_state(), groups, healthy, inv, 1, 100)

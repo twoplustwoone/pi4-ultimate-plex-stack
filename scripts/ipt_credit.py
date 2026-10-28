@@ -285,11 +285,15 @@ def parse_account_ratio(html,user_id):
     """Return only exact account totals. Never expose the profile's passkey."""
     page=AccountPage();page.feed(html)
     text=' '.join(' '.join(page.text).split())
-    uploaded=re.findall(r'(\d[\d,]*) B Uploaded\b',text,re.I)
-    downloaded=re.findall(r'(\d[\d,]*) B Downloaded\b',text,re.I)
-    if page.profiles!={str(user_id)} or len(uploaded)!=1 or len(downloaded)!=1:
+    # The exact byte totals follow their label on the VIP profile ("Uploaded
+    # 426.45 GB 457,899,577,111 B") and precede it on the plain one. Exactly one
+    # layout must read both; a page matching both is ambiguous.
+    layouts=[[re.findall(r'(\d[\d,]*) B '+label+r'\b',text,re.I) for label in ('Uploaded','Downloaded')],
+             [re.findall(r'\b'+label+r' [\d.,]+ [KMGTP]?i?B (\d[\d,]*) B\b',text,re.I) for label in ('Uploaded','Downloaded')]]
+    readable=[(up,down) for up,down in layouts if len(up)==1 and len(down)==1]
+    if page.profiles!={str(user_id)} or len(readable)!=1:
         raise CreditUnavailable('IPT account ratio format unavailable or unsupported')
-    up,down=int(uploaded[0].replace(',','')),int(downloaded[0].replace(',',''))
+    up,down=(int(n[0].replace(',','')) for n in readable[0])
     return {'uploaded':up,'downloaded':down,'below_minimum':up<down}
 
 

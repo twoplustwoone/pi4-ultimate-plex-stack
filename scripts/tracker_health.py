@@ -305,11 +305,15 @@ def advance(previous, groups, healthy, inventory, scan, now, valid=True, retired
             if key.endswith("tracker credential rejection"):
                 body += ". Affected announcements were rejected; this alone does not establish an account-wide restriction."
             events.append(("group:" + key, body))
+    # Public torrents are judged by qbit_manage's issue tag and may be cleaned
+    # up, so one recovers once it is in no current public issue group.
+    public_issues = set().union(*(set(o['hashes']) for k, o in groups.items() if k.startswith('public tracker: ')))
     for key, g in list(s["groups"].items()):
         if key in groups:
             continue
-        # All previously affected torrents must still exist and be working.
-        if set(g.get('seen_hashes', g['hashes'])).issubset(healthy | retired):
+        # All previously affected private torrents must still exist and be working.
+        seen = set(g.get('seen_hashes', g['hashes']))
+        if seen.issubset(healthy | retired) or key.startswith('public tracker: ') and not seen & public_issues:
             if scan != g["last_scan"]:
                 g["recovery_count"] += 1
                 g["last_scan"] = scan
@@ -327,7 +331,8 @@ def advance(previous, groups, healthy, inventory, scan, now, valid=True, retired
             if any(g['sent'] for _, g in related) and (not notice['recovery_sent'] or now - notice['recovery_sent'] >= 86400):
                 key = related[0][0]
                 working = ("at least one IPT endpoint is working for each affected torrent; other endpoints may still reject announcements"
-                           if tracker == 'IPTorrents' else "at least one tracker endpoint is working for each affected torrent")
+                           if tracker == 'IPTorrents' else "affected torrents are announcing again or were cleaned up"
+                           if tracker == 'public tracker' else "at least one tracker endpoint is working for each affected torrent")
                 if any(set(g.get('seen_hashes', g['hashes'])) & retired for _, g in related):
                     working = 'affected torrents have a working tracker endpoint or a verified intentional seeding-policy stop; intentionally stopped torrents are not claimed to be announcing'
                 events.append(('recovery:' + key, tracker + ': ' + working + '. Working announcements do not prove credited seed time or H&R clearance; private cleanup stays held.'))
