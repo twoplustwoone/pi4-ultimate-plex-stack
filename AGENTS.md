@@ -107,6 +107,15 @@ checks structurally cannot: everything green while nothing is delivered. It
 heartbeats an Uptime Kuma push monitor on every run, so its own death is
 detectable.
 
+The canary also looks for intrusion tells (`scripts/host_checks.py`). It flags:
+
+- any process in the exposed containers running from outside a root-owned program folder
+- Plex pinned to a digest, or on an image more than 21 days old
+- a failed or missing nightly config backup
+
+The Plex2Shell implants ran from `/config` and `/tmp`, so a program legitimately
+added to a container must come from its image.
+
 If you add a check, make its *absence* detectable too. A monitor that fails
 silently reproduces the bug it was built to catch.
 

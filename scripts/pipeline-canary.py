@@ -17,6 +17,7 @@ from tracker_health import (QBM_DIGEST, STALE_SECONDS, acknowledge, advance,
     config_problems, initial_state, last_scan, load_state, observations,
     pipeline_signature, port_forward_problem, private_torrent, sanitize, save_state)
 from datetime import datetime, timezone
+from host_checks import backup_problem, foreign_process, plex_update_problem
 from ipt_credit import (CreditUnavailable, fetch_required, with_stored_credentials,
     identity_map, advance_credit, fetch_account_ratio)
 from torrent_retirement import (advance_retirement, initial_retirement, intentional_stops, pending_stop_errors,
@@ -176,6 +177,48 @@ try:
         findings.append("library free space low: %.0f GB" % free_gb)
 except Exception:
     pass
+
+# 9-11. intrusion tells (see host_checks.py). A check that cannot run fails the
+# heartbeat rather than passing silently.
+WATCHED = ("plex", "seerr", "radarr", "sonarr", "prowlarr", "tautulli", "qbittorrent")
+def foreign_processes():
+    found = {}
+    for name in WATCHED:
+        for pid in sh("docker", "top", name, "-o", "pid").split()[1:]:
+            try:
+                uid = os.stat("/proc/" + pid).st_uid
+                with open("/proc/%s/comm" % pid) as f: comm = f.read().strip()
+            except OSError:
+                continue  # exited between listing and reading
+            try: exe = os.readlink("/proc/%s/exe" % pid)
+            except OSError: exe = None
+            why = foreign_process(exe, uid, comm)
+            if why: found[(name, pid)] = "%s %s" % (name, why)
+    return found
+try:
+    suspects = foreign_processes()
+    if suspects:
+        time.sleep(30)  # healthchecks and updates are brief; planted programs persist
+        again = foreign_processes()
+        for key in sorted(set(suspects) & set(again)):
+            findings.append("possible intrusion: " + again[key])
+except Exception as e:
+    monitor_errors.append("process check failed: %s" % type(e).__name__)
+try:
+    ref, image = sh("docker", "inspect", "plex", "--format", "{{.Config.Image}} {{.Image}}").split()
+    problem = plex_update_problem(ref, sh("docker", "image", "inspect", image, "--format", "{{.Created}}"),
+                                  datetime.now(timezone.utc))
+    if problem: findings.append(problem)
+except Exception as e:
+    monitor_errors.append("Plex update check failed: %s" % type(e).__name__)
+try:
+    unit = dict(l.split("=", 1) for l in sh("systemctl", "show", "plex-config-backup.service", "-p", "Result",
+                "-p", "ExecMainExitTimestamp", "--timestamp=unix").splitlines() if "=" in l)
+    stamp = unit.get("ExecMainExitTimestamp", "").lstrip("@")
+    problem = backup_problem(unit.get("Result"), int(stamp) if stamp.isdigit() else None, time.time())
+    if problem: findings.append(problem)
+except Exception as e:
+    monitor_errors.append("backup check failed: %s" % type(e).__name__)
 
 # 6-8. torrents: seeding owed to IPTorrents is being earned, cleanup keeps pace,
 # and the qBittorrent settings both depend on are still in place.

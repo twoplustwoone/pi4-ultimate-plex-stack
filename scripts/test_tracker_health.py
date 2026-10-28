@@ -398,8 +398,14 @@ class TrackerTests(unittest.TestCase):
         def command(args, **kw):
             if args[0] == 'df': return b'Avail\n1000000000000\n'
             if '/tmp/gluetun/forwarded_port' in args: return b'49070'
+            if tuple(args[0:3]) == ('docker','image','inspect') and '{{.Created}}' in args:
+                return datetime.now(timezone.utc).isoformat().encode()
             if tuple(args[0:3]) == ('docker','image','inspect'):
                 return json.dumps(['image@'+h.QBM_DIGEST]).encode()
+            if tuple(args[0:3]) == ('docker','inspect','plex'): return b'lscr.io/linuxserver/plex:latest sha256:plex'
+            if tuple(args[0:2]) == ('docker','top'): return b'PID\n'
+            if args[0] == 'systemctl':
+                return ('Result=success\nExecMainExitTimestamp=@%d\n' % time.time()).encode()
             if tuple(args[0:3]) == ('docker','inspect','qbit_manage'): return b'sha256:fixture'
             if 'sed' in args: return b'fixture-key'
             if '/app/config/settings.json' in args: return b'{"main":{"apiKey":"fixture-key"}}'

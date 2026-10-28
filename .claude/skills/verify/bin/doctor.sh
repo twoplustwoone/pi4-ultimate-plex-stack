@@ -9,7 +9,7 @@ REPO="$(cd "$(dirname "$0")/../../../.." && pwd)"
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=8 "$HOST")
 
 # Local checksums of the files the canary actually runs from ~/ on the host.
-LOCAL_SUMS=$(cd "$REPO/scripts" && shasum -a 256 pipeline-canary.py tracker_health.py ipt_credit.py torrent_retirement.py)
+LOCAL_SUMS=$(cd "$REPO/scripts" && shasum -a 256 pipeline-canary.py tracker_health.py ipt_credit.py torrent_retirement.py host_checks.py)
 
 run() {
 "${SSH[@]}" bash -s -- "$(printf %q "$LOCAL_SUMS")" <<'REMOTE'
