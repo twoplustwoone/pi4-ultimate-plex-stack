@@ -299,11 +299,14 @@ try:
             monitor_errors.append("IPT account connection lookup failed; retirement held")
 
     # Read only safe configuration fields and bounded logs; never expose env secrets.
+    # qbit_manage rotates its log to qbit_manage.1.log at 10 MB, even mid-run, so
+    # the last complete run can straddle the two files.
     probe = '''import json,pathlib,os
 from ruamel.yaml import YAML
+logs=[pathlib.Path('/config/logs/qbit_manage.1.log'),pathlib.Path('/config/logs/qbit_manage.log')]
 c=YAML(typ='base').load(pathlib.Path('/config/config.yml').read_text())
 print(json.dumps({'config':{k:c.get(k,{}) for k in ['commands','settings','share_limits']},
-'log':'\\n'.join(pathlib.Path('/config/logs/qbit_manage.log').read_text().splitlines()[-20000:]),
+'log':'\\n'.join(''.join(p.read_text() for p in logs if p.exists()).splitlines()[-20000:]),
 'tz':os.environ.get('TZ','UTC')}))'''
     metadata = json.loads(sh("docker", "exec", "qbit_manage", "python", "-c", probe))
     monitor_errors.extend(config_problems(metadata["config"]))
