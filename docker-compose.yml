@@ -238,6 +238,10 @@ services:
       - VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh /qbt-port.sh {{PORTS}}
       - QBT_USER=${QBITTORRENT_USER}
       - QBT_PASS=${QBITTORRENT_PASS}
+      # Refresh the server list daily. The image is pinned, and its list went
+      # ten months stale: 95% of PIA's port-forwarding IPs in it were dead, and
+      # port forwarding failed TLS on a reassigned IP (2026-10-29).
+      - UPDATER_PERIOD=24h
     # NOTE: autoheal intentionally removed 2026-04-10. Gluetun has its own
     # internal VPN healthcheck ("Restart VPN on healthcheck failure: yes")
     # that re-establishes the tunnel without restarting the container. Layering
