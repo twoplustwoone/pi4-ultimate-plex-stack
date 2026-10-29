@@ -17,7 +17,7 @@ from tracker_health import (QBM_DIGEST, STALE_SECONDS, acknowledge, advance,
     config_problems, initial_state, last_scan, load_state, observations,
     pipeline_signature, port_forward_problem, private_torrent, sanitize, save_state)
 from datetime import datetime, timezone
-from host_checks import backup_problem, foreign_process, plex_update_problem
+from host_checks import backup_problem, foreign_process, plex_update_problem, release_update_problem
 from ipt_credit import (CreditUnavailable, fetch_required, with_stored_credentials,
     identity_map, advance_credit, fetch_account_ratio)
 from torrent_retirement import (advance_retirement, initial_retirement, intentional_stops, pending_stop_errors,
@@ -180,7 +180,7 @@ except Exception:
 
 # 9-11. intrusion tells (see host_checks.py). A check that cannot run fails the
 # heartbeat rather than passing silently.
-WATCHED = ("plex", "seerr", "radarr", "sonarr", "prowlarr", "tautulli", "qbittorrent")
+WATCHED = ("plex", "jellyfin", "seerr", "radarr", "sonarr", "prowlarr", "tautulli", "qbittorrent")
 def foreign_processes():
     found = {}
     for name in WATCHED:
@@ -211,6 +211,16 @@ try:
     if problem: findings.append(problem)
 except Exception as e:
     monitor_errors.append("Plex update check failed: %s" % type(e).__name__)
+try:
+    ref, image = sh("docker", "inspect", "jellyfin", "--format", "{{.Config.Image}} {{.Image}}").split()
+    local = json.loads(sh("docker", "image", "inspect", image, "--format", "{{json .RepoDigests}}"))
+    with urllib.request.urlopen("https://hub.docker.com/v2/repositories/jellyfin/jellyfin/tags/latest", timeout=30) as r:
+        latest = json.load(r)
+    problem = release_update_problem("Jellyfin", ref, local, latest["digest"], latest["last_updated"],
+                                     datetime.now(timezone.utc))
+    if problem: findings.append(problem)
+except Exception as e:
+    monitor_errors.append("Jellyfin update check failed: %s" % type(e).__name__)
 try:
     unit = dict(l.split("=", 1) for l in sh("systemctl", "show", "plex-config-backup.service", "-p", "Result",
                 "-p", "ExecMainExitTimestamp", "--timestamp=unix").splitlines() if "=" in l)

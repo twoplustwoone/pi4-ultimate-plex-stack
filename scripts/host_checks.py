@@ -12,12 +12,16 @@ from datetime import datetime
 # Limit: the arr apps own the files inside their bin folders (for self-update),
 # so overwriting an existing file there would go unnoticed; adding one cannot.
 PROGRAM_DIRS = ("/usr/bin/", "/usr/sbin/", "/usr/local/bin/", "/bin/", "/sbin/", "/package/", "/command/",
-                "/usr/lib/plexmediaserver/", "/app/radarr/bin/", "/app/sonarr/bin/", "/app/prowlarr/bin/")
+                "/usr/lib/plexmediaserver/", "/app/radarr/bin/", "/app/sonarr/bin/", "/app/prowlarr/bin/",
+                "/jellyfin/", "/usr/lib/jellyfin-ffmpeg/")
 # Root processes cannot be read by the canary's user, so they are judged by name:
 # the s6 supervision tree, shells, and the healthchecks docker runs as root.
 ROOT_COMMANDS = {"s6-svscan", "s6-supervise", "s6-linux-init-s", "s6-ipcserverd", "s6-rc", "s6-log",
                  "bash", "sh", "sleep", "busybox", "docker-init", "curl", "wget"}
 PLEX_MAX_IMAGE_DAYS = 21   # linuxserver rebuilds the image weekly
+# Jellyfin's image changes only on a release, with gaps of up to six months, so its
+# age says nothing. Compare with the registry instead; Watchtower pulls daily.
+RELEASE_GRACE_DAYS = 3
 BACKUP_MAX_AGE_HOURS = 36  # nightly job, plus slack
 
 
@@ -39,6 +43,21 @@ def plex_update_problem(image_ref, created, now):
     age = (now - datetime.fromisoformat(created.replace("Z", "+00:00"))).total_seconds() / 86400
     if age > PLEX_MAX_IMAGE_DAYS:
         return "Plex image is %d days old: automatic updates have stopped" % age
+    return None
+
+
+def release_update_problem(name, image_ref, local_digests, latest_digest, latest_published, now):
+    """Why a container is not on its registry's latest release, or None.
+
+    `local_digests` are the running image's RepoDigests; `latest_*` describe the
+    registry's current tag."""
+    if "@sha256:" in image_ref:
+        return "%s is pinned to an image digest, so it cannot take security fixes" % name
+    if any(d.endswith("@" + latest_digest) for d in local_digests):
+        return None
+    age = (now - datetime.fromisoformat(latest_published.replace("Z", "+00:00"))).total_seconds() / 86400
+    if age > RELEASE_GRACE_DAYS:
+        return "%s has not taken a release published %d days ago: automatic updates have stopped" % (name, age)
     return None
 
 

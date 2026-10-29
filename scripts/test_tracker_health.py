@@ -482,6 +482,7 @@ class TrackerTests(unittest.TestCase):
             if '/history?' in url: return response({'records':[{'date':datetime.now().isoformat()}]})
             if '/queue?' in url: return response({'records':[]})
             if '/request?' in url: return response({'results':[]})
+            if 'hub.docker.com' in url: return response({'digest':h.QBM_DIGEST,'last_updated':'2026-10-01T00:00:00Z'})
             raise AssertionError(url)
         def command(args, **kw):
             if args[0] == 'df': return b'Avail\n1000000000000\n'
@@ -491,6 +492,7 @@ class TrackerTests(unittest.TestCase):
             if tuple(args[0:3]) == ('docker','image','inspect'):
                 return json.dumps(['image@'+h.QBM_DIGEST]).encode()
             if tuple(args[0:3]) == ('docker','inspect','plex'): return b'lscr.io/linuxserver/plex:latest sha256:plex'
+            if tuple(args[0:3]) == ('docker','inspect','jellyfin'): return b'jellyfin/jellyfin:latest sha256:jellyfin'
             if tuple(args[0:2]) == ('docker','top'): return b'PID\n'
             if args[0] == 'systemctl':
                 return ('Result=success\nExecMainExitTimestamp=@%d\n' % time.time()).encode()

@@ -46,6 +46,7 @@ R2_REMOTE="${R2_REMOTE:-r2}"
 # Services to back up — matches the config volume paths in docker-compose.yml
 SERVICES=(
   plex/config
+  jellyfin/config
   radarr/config
   sonarr/config
   prowlarr/config
@@ -63,7 +64,7 @@ echo "$LOG_PREFIX Starting backup to ${R2_REMOTE}:${R2_BUCKET}"
 
 # Containers that must be stopped for a clean database snapshot.
 # These write to SQLite WAL files continuously and can't be safely copied live.
-STOP_FOR_BACKUP=(plex uptime-kuma)
+STOP_FOR_BACKUP=(plex jellyfin uptime-kuma)
 declare -A WAS_RUNNING
 
 # Never interrupt someone watching. A missed clean snapshot costs us one night;
@@ -81,9 +82,20 @@ plex_has_active_sessions() {
   [[ -n "$n" && "$n" -gt 0 ]]
 }
 
+jellyfin_has_active_sessions() {
+  [[ -z "${JELLYFIN_API_KEY:-}" ]] && return 1
+  curl -s -m 10 -H "Authorization: MediaBrowser Token=\"$JELLYFIN_API_KEY\"" \
+       "http://127.0.0.1:8096/Sessions" 2>/dev/null | grep -q '"NowPlayingItem"'
+}
+
 for container in "${STOP_FOR_BACKUP[@]}"; do
   if [[ "$container" == "plex" ]] && plex_has_active_sessions; then
     echo "$LOG_PREFIX Plex has active playback - backing up live, not stopping it."
+    WAS_RUNNING[$container]=false
+    continue
+  fi
+  if [[ "$container" == "jellyfin" ]] && jellyfin_has_active_sessions; then
+    echo "$LOG_PREFIX Jellyfin has active playback - backing up live, not stopping it."
     WAS_RUNNING[$container]=false
     continue
   fi
@@ -152,6 +164,17 @@ for service in "${SERVICES[@]}"; do
       --exclude "Crash Reports/**"             # Not useful for restore
       --exclude "Media/**"                     # Analysis data: chapter thumbnails, GoP indexes, video thumbnails
       --exclude "Plug-in Support/Caches/**"    # HTTP caches for agents (fanarttv, imdb, themoviedb, etc.) — rebuilt on startup
+    )
+  fi
+
+  # Jellyfin-specific excludes: scrub previews and extracted streams, all
+  # regenerated from the media. Its cache volume is not backed up at all.
+  if [[ "$service" == "jellyfin/config" ]]; then
+    extra_args+=(
+      --exclude "trickplay/**"
+      --exclude "data/attachments/**"
+      --exclude "data/subtitles/**"
+      --exclude "data/keyframes/**"
     )
   fi
 

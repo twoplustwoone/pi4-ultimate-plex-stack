@@ -8,12 +8,14 @@ class ForeignProcessTest(unittest.TestCase):
     def test_programs_from_writable_places_are_flagged(self):
         # The 2026-10 implants: miner in Plex's cache, dropbear in /config, curl copies in /tmp.
         for exe in ("/config/Library/Application Support/Plex Media Server/Cache/PlexMediaScanner",
+                    "/config/plugins/x", "/cache/transcodes/x",
                     "/config/.db/db", "/tmp/.pxb/curl", "/app/evil", "/share/movies/x"):
             self.assertIn(exe, hc.foreign_process(exe, 1000, "x"))
 
     def test_stock_programs_pass(self):
         for exe in ("/usr/lib/plexmediaserver/Plex Media Server", "/usr/lib/plexmediaserver/Plex Transcoder",
-                    "/app/radarr/bin/Radarr", "/usr/local/bin/node", "/usr/bin/qbittorrent-nox"):
+                    "/app/radarr/bin/Radarr", "/usr/local/bin/node", "/usr/bin/qbittorrent-nox",
+                    "/jellyfin/jellyfin", "/usr/lib/jellyfin-ffmpeg/ffmpeg"):
             self.assertIsNone(hc.foreign_process(exe, 1000, "x"))
 
     def test_deleted_binary_is_flagged_even_in_a_system_dir(self):
@@ -41,6 +43,27 @@ class PlexUpdateTest(unittest.TestCase):
     def test_digest_pin_is_flagged_even_when_fresh(self):
         # How 1.42.2 stayed in place for ten months.
         self.assertIn("pinned", hc.plex_update_problem("lscr.io/linuxserver/plex@sha256:1720efa8", "2026-10-26T00:00:00Z", self.now))
+
+
+class ReleaseUpdateTest(unittest.TestCase):
+    now = datetime(2026, 10, 29, tzinfo=timezone.utc)
+    ref = "jellyfin/jellyfin:latest"
+    running = ["jellyfin/jellyfin@sha256:aaaa"]
+
+    def check(self, latest_digest, published, ref=ref):
+        return hc.release_update_problem("Jellyfin", ref, self.running, latest_digest, published, self.now)
+
+    def test_running_the_latest_release_passes_however_old(self):
+        self.assertIsNone(self.check("sha256:aaaa", "2026-04-05T00:00:00Z"))
+
+    def test_new_release_within_grace_passes(self):
+        self.assertIsNone(self.check("sha256:bbbb", "2026-10-27T12:00:00Z"))
+
+    def test_release_not_taken_after_grace_is_flagged(self):
+        self.assertIn("5 days ago", self.check("sha256:bbbb", "2026-10-23T12:00:00.123456Z"))
+
+    def test_digest_pin_is_flagged_even_when_current(self):
+        self.assertIn("pinned", self.check("sha256:aaaa", "2026-10-28T00:00:00Z", ref="jellyfin/jellyfin@sha256:aaaa"))
 
 
 class BackupTest(unittest.TestCase):
