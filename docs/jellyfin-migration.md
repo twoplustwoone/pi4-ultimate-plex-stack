@@ -66,7 +66,8 @@ stub written for the Pi, and it is weaker than the Plex service in three ways.
   `jellyfin/cache`, which is regenerable. Stop Jellyfin for the snapshot the way
   Plex is stopped, and skip the stop when `/Sessions` shows anything playing.
   Read the job's other side effects before the first run, per AGENTS.md.
-- [ ] Add an Uptime Kuma HTTP monitor on `http://192.168.1.246:8096/health`.
+- [x] Add an Uptime Kuma HTTP monitor on `http://192.168.1.246:8096/health`.
+  (Monitor 15, with the Discord notification.)
 
 **Done when** `docker compose config` is clean, the canary tests pass, and
 `/verify` reports the stack unchanged.
@@ -120,6 +121,7 @@ apparently point at files that no longer exist.
   `Bree`, with generated starting passwords in `.env` as `JELLYFIN_FRISCO_PASS`
   and `JELLYFIN_BREE_PASS`. A password changed in the app makes those stale.
   Plex's third account, `berear7`, had one half-watched episode and gets no user.
+  Both show as tiles on the sign-in screen; `admin` stays hidden.
 - [x] Copy watch history with `scripts/plex_watched_to_jellyfin.py`, run on the
   host. It replaces JellyPlex-Watched, which logs in through plex.tv, and an app
   doing that with the server's token is what made the Shield report "Server is

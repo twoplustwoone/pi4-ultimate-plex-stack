@@ -69,6 +69,13 @@ converting anything.
    **passthrough** (bitstream) in the app's settings. Leave it on automatic if
    sound comes from the TV speakers.
 
+**Both of you on the one Shield.** Jellyfin has no single shared account with
+profiles inside it, the way Plex Home does. Each of you has your own account,
+and the Shield app keeps both signed in. Sign in once as Frisco and once as
+Bree (Quick Connect makes this quick). Then, in the app's settings, set
+automatic sign-in so the Shield asks who is watching each time it opens. To
+change person mid-evening, use the profile icon at the top of the home screen.
+
 The Shield is at home, so it does not need Tailscale.
 
 Dolby Vision is the one known weak spot. Some Dolby Vision files play as plain
