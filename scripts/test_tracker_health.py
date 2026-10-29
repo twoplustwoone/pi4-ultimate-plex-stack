@@ -117,6 +117,37 @@ class TrackerTests(unittest.TestCase):
             h.acknowledge(s, [e[0] for e in events], scan * 100)
         self.assertEqual(len(recovered), 1)
 
+    def test_unannounced_reopening_recovers_silently(self):
+        inv = {"a": "A", "b": "B"}
+        s, hour = h.initial_state(), 3600
+        # Alert, then a recovery notice. Brief blips later reopen the closed
+        # incident without alerting; their recovery must not post either.
+        runs = [(1, "a"), (2, "a"), (3, "a"), (4, ""), (5, "")]
+        for start in (20 * hour, 26 * hour):
+            runs += [(start, "b"), (start + 900, "b"), (start + 1800, ""), (start + 2700, "")]
+        kinds = []
+        for scan, (now, unconfirmed) in enumerate(runs, 1):
+            s, events = h.advance(s, self.unknown(*unconfirmed), set(inv) - set(unconfirmed), inv, scan, now)
+            h.acknowledge(s, [e[0] for e in events], now)
+            kinds.append([e[0].split(":")[0] for e in events])
+        self.assertEqual(sum(kinds[:5], []), ["group", "recovery"])
+        self.assertEqual(sum(kinds[5:], []), [])
+
+    def test_reopened_incident_that_alerts_again_still_recovers_aloud(self):
+        inv = {"a": "A"}
+        s, hour = h.initial_state(), 3600
+        # Alert and recover, then the same outage returns and outlasts the
+        # daily reminder window: it alerts again, so its recovery is announced.
+        runs = [(1, "a"), (2, "a"), (3, "a"), (4, ""), (5, ""),
+                (20 * hour, "a"), (20 * hour + 900, "a"), (20 * hour + 1800, "a"), (25 * hour, "a"),
+                (25 * hour + 900, ""), (25 * hour + 1800, "")]
+        kinds = []
+        for scan, (now, unconfirmed) in enumerate(runs, 1):
+            s, events = h.advance(s, self.unknown(*unconfirmed), set(inv) - set(unconfirmed), inv, scan, now)
+            h.acknowledge(s, [e[0] for e in events], now)
+            kinds.append([e[0].split(":")[0] for e in events])
+        self.assertEqual(sum(kinds[5:], []), ["group", "recovery"])
+
     def test_rejected_stalled_seed_is_immediate(self):
         groups, healthy, inv, _ = self.observe([tracker()])
         s, events = h.advance(h.initial_state(), groups, healthy, inv, 1, 100)

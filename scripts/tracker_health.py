@@ -283,7 +283,9 @@ def advance(previous, groups, healthy, inventory, scan, now, valid=True, retired
     for key, obs in groups.items():
         if key not in s['groups'] and key in closed:
             restored = closed.pop(key)
-            restored.update(count=0, last_scan=None, recovery_count=0)
+            # Keep the delivery history, but a recovery notice must answer an
+            # alert sent since this reopening, not one from the closed episode.
+            restored.update(count=0, last_scan=None, recovery_count=0, reopened_at=now)
             s['groups'][key] = restored
         g = s["groups"].setdefault(key, {"first_seen": now, "count": 0, "last_scan": None,
             "sent": 0, "notified_hashes": [], "recovery_count": 0})
@@ -345,7 +347,7 @@ def advance(previous, groups, healthy, inventory, scan, now, valid=True, retired
         related = [(k, g) for k, g in s['groups'].items() if k.rsplit(': ', 1)[0] == tracker]
         if related and all(g['recovery_count'] >= 2 for _, g in related):
             notice = notices[tracker]
-            if any(g['sent'] for _, g in related) and (not notice['recovery_sent'] or now - notice['recovery_sent'] >= 86400):
+            if any(g['sent'] and g['sent'] >= g.get('reopened_at', 0) for _, g in related) and (not notice['recovery_sent'] or now - notice['recovery_sent'] >= 86400):
                 key = related[0][0]
                 working = ("at least one IPT endpoint is working for each affected torrent; other endpoints may still reject announcements"
                            if tracker == 'IPTorrents' else "affected torrents are announcing again or were cleaned up"
