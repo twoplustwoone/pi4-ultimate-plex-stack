@@ -17,7 +17,7 @@
 # Scheduling (fallback) — user crontab. The log path MUST be writable by the
 # invoking user; redirecting to /var/log silently kills the job before this
 # script ever runs, because the shell cannot open the file:
-#   0 3 * * * /home/twoplustwoone/pi4-ultimate-plex-stack/scripts/backup-configs.sh >> /home/twoplustwoone/logs/plex-backup.log 2>&1
+#   0 3 * * * /home/twoplustwoone/yggdrasil/scripts/backup-configs.sh >> /home/twoplustwoone/logs/plex-backup.log 2>&1
 
 set -euo pipefail
 

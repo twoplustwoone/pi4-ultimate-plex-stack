@@ -39,7 +39,7 @@ case "$nm" in container:*) [[ "$g" < "$q" || "$g" = "$q" ]] && pass "qbittorrent
 
 curl -sf -m 6 http://192.168.1.246:32400/identity >/dev/null && pass "Plex answers on 192.168.1.246:32400" || fail "Plex not answering"
 
-cd ~/pi4-ultimate-plex-stack || exit 1
+cd ~/yggdrasil || exit 1
 for p in "radarr 7878 v3" "sonarr 8989 v3" "prowlarr 9696 v1"; do
   set -- $p; key=$(docker exec "$1" sed -n 's#.*<ApiKey>\(.*\)</ApiKey>.*#\1#p' /config/config.xml)
   [ "${#key}" -eq 32 ] || { fail "$1 API key length ${#key}"; continue; }

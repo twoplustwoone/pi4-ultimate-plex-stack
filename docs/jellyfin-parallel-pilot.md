@@ -18,7 +18,7 @@ directories, and mounts the media library read-only.
 Run these on the Pi before starting Jellyfin:
 
 ```bash
-cd /home/twoplustwoone/pi4-ultimate-plex-stack
+cd /home/twoplustwoone/yggdrasil
 
 uname -m
 awk -F= '/^(BASE_PATH|MEDIA_SHARE|PUID|PGID|SERVER_IP)=/{print}' .env
@@ -36,7 +36,7 @@ recovery config path is `BASE_PATH=/home/pi/docker-configs`; keep
 ## Start Jellyfin
 
 ```bash
-cd /home/twoplustwoone/pi4-ultimate-plex-stack
+cd /home/twoplustwoone/yggdrasil
 set -a
 . ./.env
 set +a
@@ -97,7 +97,7 @@ test target.
 ## Rollback
 
 ```bash
-cd /home/twoplustwoone/pi4-ultimate-plex-stack
+cd /home/twoplustwoone/yggdrasil
 docker compose --profile jellyfin stop jellyfin
 docker compose --profile jellyfin rm -f jellyfin
 ```

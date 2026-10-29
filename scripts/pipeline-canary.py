@@ -49,7 +49,7 @@ MIN_FREE_GB    = 250
 
 # Torrent cleanup. These mirror qbit_manage/config/config.yml; keep them in step.
 QBIT = "http://127.0.0.1:8080"
-ENV_FILE = os.environ.get("CANARY_ENV_FILE", "/home/twoplustwoone/pi4-ultimate-plex-stack/.env")
+ENV_FILE = os.environ.get("CANARY_ENV_FILE", "/home/twoplustwoone/yggdrasil/.env")
 PUBLIC_DAYS = 3
 HNR_DAYS = 14          # IPTorrents: 1:1 or 14 days, per torrent
 CLEANUP_GRACE_DAYS = 1 # qbit_manage runs hourly; a day late means it has stalled

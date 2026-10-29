@@ -29,7 +29,7 @@ db=sqlite3.connect(dbpath)
 row=db.execute('SELECT name,type,interval FROM monitor WHERE id=12').fetchone()
 if row is None or row[:2] != ('pipeline-canary heartbeat','push') or row[2] not in (21600,2700):
     raise SystemExit('REFUSING: unexpected Kuma heartbeat monitor')
-folder=pathlib.Path('/home/twoplustwoone/pi4-ultimate-plex-stack/.local')
+folder=pathlib.Path('/home/twoplustwoone/yggdrasil/.local')
 backup=folder/('kuma-before-tracker-timer-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'.db')
 fd=os.open(backup,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
 with sqlite3.connect(backup) as target:

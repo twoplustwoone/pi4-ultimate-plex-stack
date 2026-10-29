@@ -8,7 +8,7 @@ die() { echo "REFUSING: $*" >&2; exit 1; }
 [[ $(hostname -s) == yggdrasil ]] || die "wrong host"
 [[ $(findmnt -rn -T /mnt/library -o UUID) == 3af380cc-3f62-4ef3-b6cf-5dcab2c67469 ]] || die "wrong/missing library"
 home=/home/twoplustwoone
-repo=$home/pi4-ultimate-plex-stack
+repo=$home/yggdrasil
 for f in $home/arr-sweep.py $home/arr_sweep.py $repo/systemd/arr-sweep.service $repo/systemd/arr-sweep.timer \
          /etc/systemd/system/pipeline-canary.timer; do
   [[ -f $f ]] || die "$f missing (deploy it first)"

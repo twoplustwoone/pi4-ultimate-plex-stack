@@ -48,7 +48,7 @@ def main():
         credit=fetch_required(with_stored_credentials(indexers))
         if credit['account_user_ids']!=[args.user_id] or credit['records']:
             raise ValueError('account identity or cleared H&R inventory not verified')
-        with open(root+'/pi4-ultimate-plex-stack/.env') as f:
+        with open(root+'/yggdrasil/.env') as f:
             env=dict(line.strip().split('=',1) for line in f if '=' in line and not line.startswith('#'))
         op=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         base='http://127.0.0.1:8080'
@@ -65,7 +65,7 @@ def main():
             'account_user_id':args.user_id,'hashes':hashes})
         print('Verified cleared account and %d exact pre-donation completed seeds; no stops performed.'%len(hashes))
         if args.apply_approved_waiver:
-            backup=root+'/pi4-ultimate-plex-stack/.local/retirement-before-waiver-'+str(int(now))+'.json'
+            backup=root+'/yggdrasil/.local/retirement-before-waiver-'+str(int(now))+'.json'
             save_state(backup,state)
             state['retirement']=retirement
             save_state(path,state)

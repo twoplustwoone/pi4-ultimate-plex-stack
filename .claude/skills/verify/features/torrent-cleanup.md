@@ -27,7 +27,7 @@ Preconditions: `doctor.sh` shows qBittorrent login ok and `max_ratio_act` Stop. 
 - **Guard.** Run `ssh twoplustwoone@192.168.1.246 'docker logs --tail 3 torrent-release-guard 2>&1 | cut -c1-120'`. A `released N, kept M` line within the last 30 minutes (same New_York clock).
 - **Guard heartbeat.** Run `$B/probe.sh kuma /monitors '.[]|select(.name=="torrent cleanup heartbeat")|{status,time_utc,msg}'`. `status` is `1` and `time_utc` is within the last 30 minutes. `status 0` has two readings: the guard fail-closed and reported down (msg names the cause, e.g. `qbit_manage successful tracker scan over 90m old`), or Kuma itself marked it down (msg `No heartbeat in the time window`, meaning no push arrived within the monitor's window). Report which.
 - **Whole-pipeline proof.** Run `$B/canary-report.sh`. No `qBittorrent share-limit action`, `torrent cleanup stalled` or `queued instead of seeding` lines. Also grep for `tracker scan`: a `successful tracker scan is over 90 minutes old` line means the canary is not accepting any recent qbit_manage run, even if `Finished Run` is recent.
-- **Private hold (config).** Run `ssh twoplustwoone@192.168.1.246 'cd ~/pi4-ultimate-plex-stack && git diff --stat -- qbit_manage/config/config.yml'` and read the file; private groups keep `cleanup: false` and unlimited limits. Do not edit it.
+- **Private hold (config).** Run `ssh twoplustwoone@192.168.1.246 'cd ~/yggdrasil && git diff --stat -- qbit_manage/config/config.yml'` and read the file; private groups keep `cleanup: false` and unlimited limits. Do not edit it.
 
 ## Gotchas
 

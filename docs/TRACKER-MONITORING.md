@@ -92,7 +92,7 @@ as well as into repository scripts, and compare checksums.
 Root timer installation, on yggdrasil only:
 
 ```sh
-sudo bash /home/twoplustwoone/pi4-ultimate-plex-stack/scripts/install-tracker-monitoring-timer.sh
+sudo bash /home/twoplustwoone/yggdrasil/scripts/install-tracker-monitoring-timer.sh
 ```
 
 The same guarded script briefly restarts Kuma and backs up/updates only the

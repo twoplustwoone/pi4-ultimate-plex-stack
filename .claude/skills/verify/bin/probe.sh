@@ -19,7 +19,7 @@ fi
 HOST="${VERIFY_HOST:-twoplustwoone@192.168.1.246}"
 ssh -o BatchMode=yes -o ConnectTimeout=8 "$HOST" bash -s -- "$(printf %q "$svc")" "$(printf %q "$path")" "$(printf %q "$filter")" <<'REMOTE' 
 svc=$1; path=$2; filter=$3
-cd ~/pi4-ultimate-plex-stack
+cd ~/yggdrasil
 BP=$(sed -n 's/^BASE_PATH=//p' .env | head -1 | tr -d '"')
 arr() { k=$(docker exec "$1" sed -n 's#.*<ApiKey>\(.*\)</ApiKey>.*#\1#p' /config/config.xml); curl -sS -m 30 -H "X-Api-Key: $k" "http://127.0.0.1:$2$path"; }
 case "$svc" in

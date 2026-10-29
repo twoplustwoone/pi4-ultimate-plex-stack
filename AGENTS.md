@@ -14,6 +14,10 @@ documents under `docs/` and `OPS-GUIDE.md` describe the retired Pi at
 `192.168.1.188`; they are kept as history and their addresses and paths are
 wrong. Treat this file as the authority on where things are.
 
+The checkout is `~/yggdrasil`, which is also the Compose project name
+(pinned by `name:` in `docker-compose.yml`; it was `pi4-ultimate-plex-stack`
+until October 2026).
+
 Media lives on `/mnt/library` (mounted by UUID). Container configs are at
 `/home/pi/docker-configs` — a legacy path that is real and in use; do not
 "correct" it without relocating the data.
