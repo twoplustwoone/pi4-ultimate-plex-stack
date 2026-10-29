@@ -49,9 +49,9 @@ Run first, and again whenever anything looks off:
 .claude/skills/verify/bin/doctor.sh      # writes $VERIFY_RUN_DIR/doctor.txt when set
 ```
 
-It checks: host identity and UTC clock, `/mnt/library` UUID, 13 core containers
+It checks: host identity and UTC clock, `/mnt/library` UUID, 14 core containers
 running and healthy, qBittorrent joined gluetun's namespace and started *after*
-it, Plex on `192.168.1.246:32400`, arr/Prowlarr/Seerr APIs and zero health
+it, Plex on `192.168.1.246:32400`, Jellyfin on `:8096`, arr/Prowlarr/Seerr APIs and zero health
 errors, qBittorrent login and `max_ratio_act == 0`, canary timer active with a
 run in the last 20 minutes, Kuma monitors, and whether the deployed canary
 modules on the host match this checkout. Exit code is the number of `FAIL`s.

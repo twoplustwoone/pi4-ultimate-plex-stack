@@ -39,29 +39,30 @@ Three consequences follow.
 One commit. The existing `jellyfin` service in `docker-compose.yml` is a pilot
 stub written for the Pi, and it is weaker than the Plex service in three ways.
 
-- [ ] Remove `profiles: ["jellyfin"]` so a plain `docker compose up -d` manages it.
-- [ ] Replace the whole-disk `${MEDIA_SHARE}:/media:ro` mount with read-only
+- [x] Remove `profiles: ["jellyfin"]` so a plain `docker compose up -d` manages it.
+- [x] Replace the whole-disk `${MEDIA_SHARE}:/media:ro` mount with read-only
   binds of `${MEDIA_SHARE}/movies` and `${MEDIA_SHARE}/tv`, written the way Plex's are
   (`create_host_path: false`). A compromised server should see only the library.
-- [ ] Add `devices: [/dev/dri:/dev/dri]` and `group_add: ["991"]`. The container
+- [x] Add `devices: [/dev/dri:/dev/dri]` and `group_add: ["991"]`. The container
   runs as `${PUID}:${PGID}`, and `renderD128` is `root:render` mode 660, with
   `render` being gid 991 on this host.
-- [ ] Add the label `com.centurylinklabs.watchtower.monitor-only=false`, and a
+- [x] Add the label `com.centurylinklabs.watchtower.monitor-only=false`, and a
   comment that Jellyfin is the second exception for the same reason as Plex.
-- [ ] Keep `network_mode: host`. Jellyfin then answers on `192.168.1.246:8096`,
+- [x] Keep `network_mode: host`. Jellyfin then answers on `192.168.1.246:8096`,
   which the Tailscale route `192.168.1.246/32` already covers. No new route or
   firewall change is needed.
-- [ ] Extend the canary's intrusion checks to Jellyfin.
-  - [ ] Add `jellyfin` to `WATCHED` in `scripts/pipeline-canary.py`.
-  - [ ] Add the image's program folders to `PROGRAM_DIRS` in
+- [x] Extend the canary's intrusion checks to Jellyfin.
+  - [x] Add `jellyfin` to `WATCHED` in `scripts/pipeline-canary.py`.
+  - [x] Add the image's program folders to `PROGRAM_DIRS` in
     `scripts/host_checks.py`. Check first that they are root-owned and not
     writable by `${PUID}`. Expect `/jellyfin/` and `/usr/lib/jellyfin-ffmpeg/`.
-  - [ ] Generalize `plex_update_problem` to take a service name and an age limit.
+  - [x] Generalize `plex_update_problem` to take a service name and an age limit.
     The official Jellyfin image is rebuilt per release, not weekly, so 21 days
-    would false-alarm. Pick the limit from the release history, or compare
-    against the registry's current `latest` digest instead.
-  - [ ] Add tests beside the existing ones in `scripts/test_host_checks.py`.
-- [ ] Add `jellyfin/config` to `SERVICES` in `scripts/backup-configs.sh`. Exclude
+    would false-alarm. Done as `release_update_problem`, which compares the
+    running digest with Docker Hub's `latest` instead. Releases have gone six
+    months apart.
+  - [x] Add tests beside the existing ones in `scripts/test_host_checks.py`.
+- [x] Add `jellyfin/config` to `SERVICES` in `scripts/backup-configs.sh`. Exclude
   `jellyfin/cache`, which is regenerable. Stop Jellyfin for the snapshot the way
   Plex is stopped, and skip the stop when `/Sessions` shows anything playing.
   Read the job's other side effects before the first run, per AGENTS.md.
@@ -75,29 +76,40 @@ stub written for the Pi, and it is weaker than the Plex service in three ways.
 No `sudo` is needed. The config folder is under `/home/pi/docker-configs`, which
 the user already owns.
 
-- [ ] `mkdir -p /home/pi/docker-configs/jellyfin/{config,cache}`, then
+- [x] `mkdir -p /home/pi/docker-configs/jellyfin/{config,cache}`, then
   `docker compose up -d jellyfin`.
-- [ ] Confirm the library mounts are read-only with
+- [x] Confirm the library mounts are read-only with
   `docker inspect jellyfin --format '{{range .Mounts}}{{println .Destination .RW}}{{end}}'`.
-- [ ] Open `http://192.168.1.246:8096` and run the wizard.
-  - [ ] Create an admin account with a password not used anywhere else.
-  - [ ] Add a Movies library on `/media/movies` and a Shows library on `/media/tv`.
+- [x] Open `http://192.168.1.246:8096` and run the wizard.
+  - [x] Create an admin account with a password not used anywhere else. It is
+    `admin`, with a generated password in `.env` as `JELLYFIN_ADMIN_PASS`.
+  - [x] Add a Movies library on `/media/movies` and a Shows library on `/media/tv`.
     Leave real-time monitoring on, so new imports appear without a scan.
-  - [ ] Turn off "Allow remote connections to this server" only if remote
-    viewing is not wanted. Leave it on otherwise. Tailscale is the only way in.
-- [ ] In Dashboard, Playback, Transcoding, choose Intel QuickSync (QSV). Enable
+  - [x] Leave "Allow remote connections" on and UPnP off. Tailscale is the only
+    way in.
+- [x] In Dashboard, Playback, Transcoding, choose Intel QuickSync (QSV). Enable
   hardware decoding for H.264, HEVC, HEVC 10-bit, VC-1 and VP9. Enable hardware
   encoding and tone mapping.
-- [ ] In Dashboard, Networking, add `100.64.0.0/10` and `192.168.1.0/24` to the LAN
+- [x] In Dashboard, Networking, add `100.64.0.0/10` and `192.168.1.0/24` to the LAN
   networks. Without it, tailnet clients count as remote and get the remote
   bitrate limit.
-- [ ] Run the first scan overnight. Turn on trickplay (scrub previews) only after
-  it finishes, so the two do not compete.
-- [ ] Install the Playback Reporting plugin. It replaces Tautulli's history.
+- [x] Run the first scan. (Ran 2026-10-29 in the afternoon with nobody watching Plex.)
+- [ ] Decide on trickplay. Trickplay (scrub previews) stays off for
+  now. Generating it reads every video in full, about 3.4 TB, over several
+  nights.
+- [x] Install the Playback Reporting plugin. It replaces Tautulli's history.
 
 **Done when** both libraries show every title Plex shows, and a forced transcode
 of a 4K HEVC file shows `qsv` in its ffmpeg log under
 `/home/pi/docker-configs/jellyfin/config/log/`.
+
+**Phase 0 and 1 results, 2026-10-29.** Commits `20a0540` and `fbf2570`.
+Jellyfin 12.4.0 is healthy, and `/verify`'s doctor passes with it. A
+forced transcode of a 4K HDR HEVC movie to 1080p H.264 ran at 6x real time.
+Decoding went through VAAPI, encoding through `h264_qsv`, and tone mapping
+through `tonemap_opencl`. The scan found 85 movies and 1,477 episodes, which is
+every video file on disk. Plex lists 1,485 episodes, so 8 of its entries
+apparently point at files that no longer exist.
 
 ## Phase 2. Accounts, watch history and devices
 

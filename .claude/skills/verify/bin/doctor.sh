@@ -26,7 +26,7 @@ uuid=$(findmnt -rn -T /mnt/library -o UUID)
 [ "$uuid" = 3af380cc-3f62-4ef3-b6cf-5dcab2c67469 ] && pass "/mnt/library is the live library disk ($(df -h /mnt/library | awk 'END{print $4" free"}'))" \
   || fail "/mnt/library UUID is '$uuid'"
 
-for c in plex radarr sonarr prowlarr seerr gluetun qbittorrent qbit_manage torrent-release-guard tautulli uptime-kuma unpackerr cloudflared; do
+for c in plex jellyfin radarr sonarr prowlarr seerr gluetun qbittorrent qbit_manage torrent-release-guard tautulli uptime-kuma unpackerr cloudflared; do
   s=$(docker inspect "$c" --format '{{.State.Status}}/{{if .State.Health}}{{.State.Health.Status}}{{else}}nohealthcheck{{end}}' 2>/dev/null)
   case "$s" in running/healthy|running/nohealthcheck) pass "container $c $s";; *) fail "container $c: ${s:-missing}";; esac
 done
@@ -38,6 +38,7 @@ case "$nm" in container:*) [[ "$g" < "$q" || "$g" = "$q" ]] && pass "qbittorrent
   *) fail "qbittorrent network mode is $nm";; esac
 
 curl -sf -m 6 http://192.168.1.246:32400/identity >/dev/null && pass "Plex answers on 192.168.1.246:32400" || fail "Plex not answering"
+[ "$(curl -s -m 6 http://192.168.1.246:8096/health)" = Healthy ] && pass "Jellyfin answers on 192.168.1.246:8096" || fail "Jellyfin not answering"
 
 cd ~/yggdrasil || exit 1
 for p in "radarr 7878 v3" "sonarr 8989 v3" "prowlarr 9696 v1"; do

@@ -61,16 +61,22 @@ service APIs are reachable over HTTP on localhost.
 Plex was compromised through Plex2Shell in October 2026 while pinned to a
 ten-month-old build with port 32400 forwarded. Two rules follow:
 
-- **Plex is never pinned and never forwarded.** It tracks `:latest` and is the
-  one container (with `tailscale`) that Watchtower updates; everything else is
-  monitor-only. Remote access in Plex stays off; `plex-upnp-port.timer` is
-  disabled and must stay that way.
+- **Plex is never pinned and never forwarded.** It tracks `:latest` and, with
+  `jellyfin` and `tailscale`, is one of the three containers Watchtower updates;
+  everything else is monitor-only. `scripts/pin-images.sh` skips all three.
+  Remote access in Plex stays off; `plex-upnp-port.timer` is disabled and must
+  stay that way.
 - **Remote clients come in over Tailscale** (container `tailscale`, node
   `yggdrasil`, `100.110.236.10`). plex.tv's Cloudflare edge rejects any device
   update listing a `100.64/10` address, so do not set Plex's custom connection
   URL to the tailnet IP — it breaks Plex's publishing with 403s. Instead the
   node advertises the route `192.168.1.246/32`, and clients use the
   `192-168-1-246.<hash>.plex.direct` connection plex.tv already lists.
+
+Jellyfin is replacing Plex, under the same two rules
+(`docs/jellyfin-migration.md`). Clients use `http://192.168.1.246:8096` at home
+and over the same route. It has no plex.tv-style limit, so the tailnet IP works
+too. Its UPnP stays off.
 
 ## Talking to the services
 
@@ -82,7 +88,10 @@ curl -s -H "X-Api-Key: $key" http://127.0.0.1:7878/api/v3/health
 ```
 
 Ports: radarr 7878, sonarr 8989, prowlarr 9696 (`/api/v1`), seerr 5055,
-qBittorrent via gluetun 8080, Plex 32400, Tautulli 8181, Uptime Kuma 3001.
+qBittorrent via gluetun 8080, Plex 32400, Jellyfin 8096, Tautulli 8181,
+Uptime Kuma 3001. Jellyfin's API key is `JELLYFIN_API_KEY` in `.env`, sent as
+`Authorization: MediaBrowser Token="<key>"`; its admin login is
+`JELLYFIN_ADMIN_USER`/`_PASS`.
 Seerr (Overseerr's successor; the container is `seerr`, still reachable as
 `overseerr` on the Docker network) keeps its key in `/app/config/settings.json`
 under `main.apiKey`. qBittorrent's credentials are `QBITTORRENT_USER`/`_PASS`
