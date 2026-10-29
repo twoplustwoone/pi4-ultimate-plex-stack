@@ -55,18 +55,41 @@ services:
       retries: 5
       start_period: 60s
 
+  # jellyfin: replacing Plex (docs/jellyfin-migration.md). Same exposure rules:
+  # reached only over the LAN and the Tailscale route, never forwarded.
   jellyfin:
     image: ${JELLYFIN_IMAGE:-jellyfin/jellyfin:latest}
     container_name: jellyfin
-    profiles: ["jellyfin"]
     user: "${PUID}:${PGID}"
+    # renderD128 is root:render 0660; render is gid 991 on yggdrasil. Without it
+    # Quick Sync is silently unavailable and every transcode runs on the CPU.
+    group_add:
+      - "991"
     network_mode: host
     environment:
       - TZ=${TZ}
+    devices:
+      - /dev/dri:/dev/dri
     volumes:
       - ${BASE_PATH}/jellyfin/config:/config
       - ${BASE_PATH}/jellyfin/cache:/cache
-      - ${MEDIA_SHARE}:/media:ro
+      # Only the two library folders, read-only, as with Plex.
+      - type: bind
+        source: ${MEDIA_SHARE}/movies
+        target: /media/movies
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MEDIA_SHARE}/tv
+        target: /media/tv
+        read_only: true
+        bind:
+          create_host_path: false
+    labels:
+      - "autoheal.enable=true"
+      # Faces remote clients like Plex, so it takes releases the same way.
+      - "com.centurylinklabs.watchtower.monitor-only=false"
     restart: unless-stopped
     pull_policy: if_not_present
     logging: *default-logging
@@ -74,7 +97,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -sS http://127.0.0.1:8096/ > /dev/null || wget -q -O- http://127.0.0.1:8096/ > /dev/null",
+          "curl -fsS http://127.0.0.1:8096/health > /dev/null || wget -q -O- http://127.0.0.1:8096/health > /dev/null",
         ]
       interval: 30s
       timeout: 10s

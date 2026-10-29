@@ -63,10 +63,9 @@ Currently you can choose from the **Basic** or the **Advanced** compose using Do
    docker compose --profile advanced up -d
    ```
 
-   Optional: to test Jellyfin beside Plex without replacing Plex, see
-   [docs/jellyfin-parallel-pilot.md](docs/jellyfin-parallel-pilot.md). The pilot
-   service is isolated behind the `jellyfin` profile and can be started with
-   `docker compose --profile jellyfin up -d jellyfin`.
+   Jellyfin is replacing Plex. The server plan is
+   [docs/jellyfin-migration.md](docs/jellyfin-migration.md), and the household
+   guide to the apps is [docs/jellyfin-devices.md](docs/jellyfin-devices.md).
 
 5. OPTIONAL: Setup a reverse proxy so you can use radarr.my-domain.com instead of 192.168.1.10 to access each of your apps
 
