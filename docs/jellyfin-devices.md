@@ -18,7 +18,14 @@ Tailscale is a private tunnel back to the house. It is why the server is not
 on the open internet, which is how Plex was broken into in October 2026.
 
 Each person signs in with their own Jellyfin user, so watch progress and
-"continue watching" stay separate.
+"continue watching" stay separate. The users are **Frisco** and **Bree**. Your
+Plex watch history and half-watched spots are already copied in. Change the
+starting password in the app under your profile after the first sign-in.
+
+**Signing in on the TV or Shield without typing a password.** Pick **Quick
+Connect** on the TV's sign-in screen. It shows a six-character code. On a phone
+already signed in, open the app's settings, choose Quick Connect, and enter the
+code.
 
 ## Phone
 

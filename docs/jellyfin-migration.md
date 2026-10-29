@@ -94,9 +94,12 @@ the user already owns.
   networks. Without it, tailnet clients count as remote and get the remote
   bitrate limit.
 - [x] Run the first scan. (Ran 2026-10-29 in the afternoon with nobody watching Plex.)
-- [ ] Decide on trickplay. Trickplay (scrub previews) stays off for
-  now. Generating it reads every video in full, about 3.4 TB, over several
-  nights.
+- [x] Turn on trickplay (scrub previews), on the GPU with keyframe-only
+  extraction. The "Generate Trickplay Images" task runs daily from 04:00 New
+  York time, after the 03:30 config backup that stops Jellyfin, for at most
+  11.5 hours. A 150-second trial made 7 titles at about 2.7 MB each, so the
+  library needs roughly 9 hours and 4 GB under `config/data/trickplay`, which
+  the backup skips.
 - [x] Install the Playback Reporting plugin. It replaces Tautulli's history.
 
 **Done when** both libraries show every title Plex shows, and a forced transcode
@@ -113,19 +116,30 @@ apparently point at files that no longer exist.
 
 ## Phase 2. Accounts, watch history and devices
 
-- [ ] Create a non-admin Jellyfin user for each person in Plex Home. Plex lists
-  four accounts today.
-- [ ] Copy watch history from Plex with `luigi311/jellyplex-watched`. Run it with
-  `DRYRUN=True` first and read the log. Then run it for real, and keep it on a
-  schedule for the whole parallel run, so progress follows a viewer between
-  apps. The tool matches by provider IDs and file names, and its author calls it
-  imperfect. Spot-check ten shows. Its maintenance status is unverified, so
-  check its last release before relying on it.
+- [x] Create a non-admin Jellyfin user for each person. They are `Frisco` and
+  `Bree`, with generated starting passwords in `.env` as `JELLYFIN_FRISCO_PASS`
+  and `JELLYFIN_BREE_PASS`. A password changed in the app makes those stale.
+  Plex's third account, `berear7`, had one half-watched episode and gets no user.
+- [x] Copy watch history with `scripts/plex_watched_to_jellyfin.py`, run on the
+  host. It replaces JellyPlex-Watched, which logs in through plex.tv, and an app
+  doing that with the server's token is what made the Shield report "Server is
+  Outdated". The script reads a snapshot of Plex's database instead and
+  matches by file path, which both servers share, so nothing is matched by
+  guesswork. It only moves Jellyfin forward and is safe to rerun.
+  `python3 scripts/plex_watched_to_jellyfin.py --map francisco.di=Frisco --map Brisita=Bree`
+  is the dry run, and `--apply` writes.
 - [ ] Set up every device per [`jellyfin-devices.md`](jellyfin-devices.md), and
   tick its checklist there.
 
 **Done when** each person can open their own account on each of their devices,
 and a show half-watched in Plex resumes at the same point in Jellyfin.
+
+**History copy, 2026-10-29.** Frisco got 319 titles marked watched and 16
+resume points, Bree 227 and 25. That matches Plex's own counts, apart from one
+file holding two episodes, which Plex counts twice. No Plex entry lacked a file
+in Jellyfin, and a rerun found nothing left to do. The copy is one-way. Viewing
+done in Plex during Phase 3 comes across on a rerun. Viewing done in Jellyfin
+never goes back to Plex, which is going away.
 
 ## Phase 3. Run both servers for four weeks
 
@@ -167,7 +181,7 @@ losing request history is not established. Test it on a copy first.
 
 The switch-off is reversible. The removal is not, so it waits.
 
-- [ ] Run JellyPlex-Watched once more, then stop it.
+- [ ] Rerun `scripts/plex_watched_to_jellyfin.py --apply` to catch fallback viewing.
 - [ ] `docker stop plex tautulli`. Under `unless-stopped`, they stay off across
   reboots, which is the point. Leave them off for 30 days. `docker start plex`
   is the whole rollback.
